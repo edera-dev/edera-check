@@ -1,6 +1,12 @@
 use log::{error, info, warn};
 use std::fmt;
 
+/// CheckResultValue is the final value for the result of an individual check.
+///
+/// Failed means a check ran successfully but did not pass. Errored means a check hit an
+/// error while executing.
+///
+/// Failed and Errored should contain a descriptive string explaining the result.
 pub enum CheckResultValue {
     Passed,
     Failed(String),
@@ -19,8 +25,13 @@ impl fmt::Display for CheckResultValue {
     }
 }
 
+/// CheckResult is the end result of an individual check. It carries the name of the individual
+/// check as well as the end result.
 pub struct CheckResult {
+    /// name is the name of the individual check
     pub name: String,
+
+    /// result is the final result of an individual check
     pub result: CheckResultValue,
 }
 
@@ -33,9 +44,17 @@ impl CheckResult {
     }
 }
 
+/// CheckGroupResult is the result for a top-level group of checks. The result field is calculated
+/// from the set of individual checks within that group.
 pub struct CheckGroupResult {
+    /// name is the name of the group of checks
     pub name: String,
+
+    /// result is the top-level result of the group of checks. It is calculated from the results of
+    /// each individual check.
     pub result: CheckResultValue,
+
+    /// results is the list of results from each individual check within this group.
     pub results: Vec<CheckResult>,
 }
 
@@ -47,6 +66,9 @@ impl CheckGroupResult {
             results: Vec::new(),
         }
     }
+
+    /// log_group is a pretty-print helper to log the result of the group based on what the result
+    /// value is.
     pub fn log_group(&self) {
         let name = &self.name;
         let result = &self.result;
@@ -59,6 +81,8 @@ impl CheckGroupResult {
         }
     }
 
+    /// log_individual_checks is a pretty-print helper to log the results of each individual check
+    /// within a group.
     pub fn log_individual_checks(&self) {
         let group_name = &self.name;
         for check_result in self.results.iter() {
@@ -75,12 +99,22 @@ impl CheckGroupResult {
     }
 }
 
+/// CheckGroup is a trait representing a group of checks.
 pub trait CheckGroup {
+    /// name is the name of the check group
     fn name(&self) -> &str;
+
+    /// id is the identifier for the check group. This field is used when skipping or selecting
+    /// certain check groups to run so it should be env/cli friendly.
     fn id(&self) -> &str;
+
+    /// description is a longer form text field explaining what this check group is intended for.
     fn description(&self) -> &str;
+
+    /// run is the main entry point that runs the checks within the check group.
     fn run(&self) -> CheckGroupResult;
 }
 
+// modules
 pub mod script;
 pub mod system;

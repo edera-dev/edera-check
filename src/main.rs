@@ -31,8 +31,11 @@ fn main() -> Result<()> {
         }
 
         info!("Running Group [{}] - {}", group.name(), group.description());
+
         let check_group_result = group.run();
+
         check_group_result.log_group();
+
         if env::var("EDERA_PREFLIGHT_VERBOSE").unwrap_or_default() == "true" {
             check_group_result.log_individual_checks();
         }
@@ -48,7 +51,7 @@ fn main() -> Result<()> {
     }
 
     match final_result {
-        Errored(_) | Failed(_) => bail!("checks failed"),
+        Errored(_) | Failed(_) => bail!("Preflight checks did not pass"),
         _ => Ok(()),
     }
 }

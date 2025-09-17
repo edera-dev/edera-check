@@ -13,9 +13,13 @@ use std::process::Command;
 const GROUP_IDENTIFIER: &str = "ScriptedChecks";
 const NAME: &str = "Scripted Checks";
 
+/// ScriptChecks is a special type of check that is intended to run a series of
+/// small shell scripts. The intent here is to make a pluggable interface for to
+/// quickly implement checks. Ideally all checks end up in their own CheckGroup.
 pub struct ScriptChecks;
 
 impl ScriptChecks {
+    /// run_all runs all shell scripts within the directory $EDERA_PREFLIGHT_SCRIPTS_DIR
     pub fn run_all(&self) -> CheckGroupResult {
         let mut results = Vec::new();
 
@@ -53,11 +57,16 @@ impl ScriptChecks {
         }
     }
 
+    /// scripts_dir sets the directory to search for scripts
     fn scripts_dir(&self) -> PathBuf {
         let sdir = env::var("EDERA_PREFLIGHT_SCRIPTS_DIR").unwrap_or("./scripts".to_string());
         PathBuf::from(sdir)
     }
 
+    /// script_list attempts to collect a list of shell scripts to execute. It
+    /// will return an empty list if the path does not exist or is not a
+    /// directory. If the path is a directory it will scrape all files (without
+    /// recursing into subdirectories) and return them as a list.
     fn script_list(&self) -> Result<Vec<PathBuf>> {
         let scripts_dir = self.scripts_dir();
 
@@ -77,7 +86,7 @@ impl ScriptChecks {
             let entry = entry?;
             if !entry.file_type()?.is_file() {
                 warn!(
-                    "skipping load of {}",
+                    "skipping load of {}: not a file",
                     entry.file_name().to_str().unwrap_or("unknown")
                 );
                 continue;
@@ -86,11 +95,18 @@ impl ScriptChecks {
             scripts.push(entry.path());
         }
 
-        scripts.push(PathBuf::from("/totally/fake/script"));
-
         Ok(scripts)
     }
 
+    /// run_script will run an individual script and return the result. It will
+    /// attempt to scrape some details from the script output (like a name for
+    /// the check).
+    ///
+    /// If there is an error running the script (eg: script is not executable) then
+    /// the check will return an error result.
+    ///
+    /// If the script runs successfully but exits with a non-zero exit code, then
+    /// the check will reutrn a fail result.
     fn run_script(&self, path: &PathBuf) -> CheckResult {
         let output = Command::new(path).output();
 

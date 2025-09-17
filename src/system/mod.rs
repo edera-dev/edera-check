@@ -14,7 +14,7 @@ pub struct SystemChecks;
 
 impl SystemChecks {
     pub fn run_all(&self) -> CheckGroupResult {
-        let results = vec![self.enough_memory(), self.erroring(), self.failing()];
+        let results = vec![self.enough_memory()];
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -49,16 +49,6 @@ impl SystemChecks {
             result = Failed(reason);
         }
         CheckResult::new(&name, result)
-    }
-
-    fn failing(&self) -> CheckResult {
-        let name = String::from("Should Fail");
-        CheckResult::new(&name, Failed(String::from("Pretending to fail")))
-    }
-
-    fn erroring(&self) -> CheckResult {
-        let name = String::from("Should Error");
-        CheckResult::new(&name, Errored(String::from("Pretending to error")))
     }
 }
 
