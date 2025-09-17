@@ -77,6 +77,7 @@ impl CheckGroupResult {
 
 pub trait CheckGroup {
     fn name(&self) -> &str;
+    fn id(&self) -> &str;
     fn description(&self) -> &str;
     fn run(&self) -> CheckGroupResult;
 }

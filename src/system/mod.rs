@@ -3,12 +3,14 @@ use super::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
+use log::debug;
 use sysinfo::System;
 
-pub struct SystemChecks;
-
+const GROUP_IDENTIFIER: &str = "SystemChecks";
 const NAME: &str = "System Checks";
 const MINIMUM_MEMORY: u64 = 10000;
+
+pub struct SystemChecks;
 
 impl SystemChecks {
     pub fn run_all(&self) -> CheckGroupResult {
@@ -39,6 +41,7 @@ impl SystemChecks {
         sys.refresh_all();
 
         let total_mem = sys.total_memory();
+        debug!("total memory = {total_mem}");
 
         let mut result = Passed;
         if total_mem < MINIMUM_MEMORY {
@@ -60,6 +63,10 @@ impl SystemChecks {
 }
 
 impl CheckGroup for SystemChecks {
+    fn id(&self) -> &str {
+        GROUP_IDENTIFIER
+    }
+
     fn name(&self) -> &str {
         NAME
     }

@@ -10,9 +10,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-pub struct ScriptChecks;
-
+const GROUP_IDENTIFIER: &str = "ScriptedChecks";
 const NAME: &str = "Scripted Checks";
+
+pub struct ScriptChecks;
 
 impl ScriptChecks {
     pub fn run_all(&self) -> CheckGroupResult {
@@ -126,6 +127,10 @@ impl ScriptChecks {
 }
 
 impl CheckGroup for ScriptChecks {
+    fn id(&self) -> &str {
+        GROUP_IDENTIFIER
+    }
+
     fn name(&self) -> &str {
         NAME
     }

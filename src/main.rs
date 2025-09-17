@@ -11,14 +11,18 @@ use std::env;
 
 fn main() -> Result<()> {
     env_logger::init();
-    let checks: Vec<Box<dyn CheckGroup>> = vec![Box::new(SystemChecks), Box::new(ScriptChecks)];
+
+    let groups: Vec<Box<dyn CheckGroup>> = vec![Box::new(SystemChecks), Box::new(ScriptChecks)];
 
     let mut final_result = Passed;
 
     // Run each check group
-    for check in checks {
-        info!("Running Group [{}] - {}", check.name(), check.description());
-        let check_group_result = check.run();
+    for group in groups {
+        // if group.id() == "ScriptedChecks" {
+        //     continue;
+        // }
+        info!("Running Group [{}] - {}", group.name(), group.description());
+        let check_group_result = group.run();
         check_group_result.log_group();
         if env::var("EDERA_PREFLIGHT_VERBOSE").unwrap_or_default() == "true" {
             check_group_result.log_individual_checks();
