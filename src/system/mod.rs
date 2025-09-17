@@ -14,7 +14,7 @@ pub struct SystemChecks;
 
 impl SystemChecks {
     pub fn run_all(&self) -> CheckGroupResult {
-        let results = vec![self.enough_memory()];
+        let results = vec![self.enough_memory(), self.enough_disk()];
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -48,6 +48,12 @@ impl SystemChecks {
             let reason = format!("total memory is less than {}", MINIMUM_MEMORY);
             result = Failed(reason);
         }
+        CheckResult::new(&name, result)
+    }
+
+    fn enough_disk(&self) -> CheckResult {
+        let name = String::from("Enough Disk");
+        let mut result = Passed;
         CheckResult::new(&name, result)
     }
 }

@@ -60,3 +60,7 @@ Exit code is **non-zero** if any check/group fails or errors.
 
 * Use `EDERA_PREFLIGHT_SKIP_GROUPS` to bypass slow or irrelevant checks.
 * Script-based checks must be **executable** and located in `EDERA_PREFLIGHT_SCRIPTS_DIR`.
+
+## Script Based Checks
+
+Check the scripts [README.md](./scripts/README.md)
