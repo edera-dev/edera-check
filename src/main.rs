@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 
     // Run each check group
     for check in checks {
-        info!("Running {} - {}", check.name(), check.description());
+        info!("Running Group [{}] - {}", check.name(), check.description());
         let check_group_result = check.run();
         check_group_result.log_group();
         if env::var("EDERA_PREFLIGHT_VERBOSE").unwrap_or_default() == "true" {

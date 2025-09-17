@@ -50,23 +50,26 @@ impl CheckGroupResult {
     pub fn log_group(&self) {
         let name = &self.name;
         let result = &self.result;
+        let s = format!("[{}] {}", name, result);
         match result {
-            CheckResultValue::Passed => info!("{}: {}", name, result),
-            CheckResultValue::Failed(_) => warn!("{}: {}", name, result),
-            CheckResultValue::Errored(_) => error!("{}: {}", name, result),
-            CheckResultValue::Unknown => warn!("{}: {}", name, result),
+            CheckResultValue::Passed => info!("{}", s),
+            CheckResultValue::Failed(_) => warn!("{}", s),
+            CheckResultValue::Errored(_) => error!("{}", s),
+            CheckResultValue::Unknown => warn!("{}", s),
         }
     }
 
     pub fn log_individual_checks(&self) {
+        let group_name = &self.name;
         for check_result in self.results.iter() {
             let name = &check_result.name;
             let result = &check_result.result;
+            let s = format!("[{}] {}: {}", group_name, name, result);
             match result {
-                CheckResultValue::Passed => info!("{}: {}", name, result),
-                CheckResultValue::Failed(_) => warn!("{}: {}", name, result),
-                CheckResultValue::Errored(_) => error!("{}: {}", name, result),
-                CheckResultValue::Unknown => warn!("{}: {}", name, result),
+                CheckResultValue::Passed => info!("{}", s),
+                CheckResultValue::Failed(_) => warn!("{}", s),
+                CheckResultValue::Errored(_) => error!("{}", s),
+                CheckResultValue::Unknown => warn!("{}", s),
             }
         }
     }
