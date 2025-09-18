@@ -7,11 +7,94 @@ use anyhow::Result;
 use log::{debug, warn};
 use std::env;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 
 const GROUP_IDENTIFIER: &str = "ScriptedChecks";
 const NAME: &str = "Scripted Checks";
+
+// TODO(found-it): encoding this here for the time being. Need a better way to handle builtin
+// scripts, but would like to get customer feedback first.
+const PVH_SCRIPT: &str = r#"#!/bin/sh
+set -eu
+
+echo "EDERA_PREFLIGHT_CHECK_NAME=Can PVH Be Enabled"
+
+# prerequisites: msr-tools (rdmsr), and the msr kernel module
+modprobe msr 2>/dev/null || true
+
+err() {
+  echo "$@" >&2
+}
+
+do_rdmsr() {
+  MSR="$1"
+  if [ ! -e /dev/cpu/0/msr ]; then
+    err "rdmsr ${MSR}: /dev/cpu/0/msr doesn't exist, load 'msr' kernel module"
+    return 1
+  fi
+
+  if command -v rdmsr >/dev/null; then
+    rdmsr -p0 -d "$MSR" 2>/dev/null || echo 0
+  elif command -v dd >/dev/null && command -v od >/dev/null; then
+    (dd if=/dev/cpu/0/msr bs=1 skip=$(($MSR)) count=8 status=none 2>/dev/null | od -An -tu8 -N8) || echo 0
+  else
+    err "rdmsr ${MSR}: need either 'rdmsr' or 'dd' and 'od' commands and none were found"
+    return 1
+  fi
+}
+
+cpu_vendor=$(awk -F: '/vendor_id/{print $2; exit}' /proc/cpuinfo | xargs)
+flags=$(awk -F: '/^flags/{print $2; exit}' /proc/cpuinfo)
+
+case "$cpu_vendor" in
+"GenuineIntel")
+  echo "$flags" | grep -qw vmx && cap=yes || cap=no
+
+  if do_rdmsr "0x3a" >/dev/null; then
+    val=$(do_rdmsr 0x3a 2>/dev/null || echo 0)
+    lock=$(((val >> 0) & 1))
+    vmx_outside_smx=$(((val >> 2) & 1))
+    bios_enabled=no
+    if [ $lock -eq 1 ] && [ $vmx_outside_smx -eq 1 ]; then
+      bios_enabled=yes
+    fi
+    printf "Intel VT-x capability: %s\n" "$cap"
+    printf "IA32_FEATURE_CONTROL (0x3A): 0x%x (lock=%d, vmx_outside_smx=%d)\n" "$val" "$lock" "$vmx_outside_smx"
+    printf "BIOS permits VT-x: %s\n" "$bios_enabled"
+  else
+    printf "Intel VT-x capability: %s (install msr-tools to verify MSR 0x3A)\n" "$cap"
+  fi
+  ;;
+
+"AuthenticAMD")
+  echo "$flags" | grep -qw svm && cap=yes || cap=no
+  if do_rdmsr "0xC0010114" >/dev/null; then
+    vmcr=$(do_rdmsr 0xC0010114 2>/dev/null || echo 0)
+    lock=$(((vmcr >> 3) & 1))   # VM_CR.LOCK
+    svmdis=$(((vmcr >> 4) & 1)) # VM_CR.SVMDIS (1 = disabled by BIOS/firmware)
+    bios_enabled=$([ $svmdis -eq 0 ] && echo yes || echo no)
+
+    efer=$(do_rdmsr 0xC0000080 2>/dev/null || echo 0)
+    svme=$(((efer >> 12) & 1)) # EFER.SVME (runtime: 1 if OS/hypervisor enabled SVM)
+
+    printf "AMD SVM capability: %s\n" "$cap"
+    printf "VM_CR (0xC0010114): 0x%x (lock=%d, svmdis=%d)\n" "$vmcr" "$lock" "$svmdis"
+    printf "BIOS permits SVM: %s\n" "$bios_enabled"
+    printf "EFER (0xC0000080): 0x%x (SVME=%d)\n" "$efer" "$svme"
+  else
+    printf "AMD SVM capability: %s (install msr-tools to verify VM_CR/EFER)\n" "$cap"
+  fi
+  ;;
+
+*)
+  echo "Unknown CPU vendor: $cpu_vendor"
+  ;;
+esac
+
+# vim: set ts=2 sts=2 sw=2 et:
+"#;
 
 /// ScriptChecks is a special type of check that is intended to run a series of
 /// small shell scripts. The intent here is to make a pluggable interface for to
@@ -31,7 +114,24 @@ impl ScriptChecks {
                 results: vec![],
             };
         }
-        let script_list = script_list.unwrap();
+        let mut script_list = script_list.unwrap();
+
+        // TODO(found-it): Handle builtin scripts better. This is a temporary workaround while we
+        // get folks to test. If they want to copy the binary out of the container then everything
+        // will be self contained.
+        let script_path = env::temp_dir().join("edera_preflight_pvh.sh");
+        let r = fs::write(&script_path, PVH_SCRIPT);
+        if r.is_ok() {
+            if let Ok(metadata) = fs::metadata(&script_path) {
+                let mut permissions = metadata.permissions();
+
+                // Set permissions to read, write, and execute for owner (0o700)
+                // The `0o` prefix indicates an octal literal.
+                permissions.set_mode(0o700);
+                let _ = fs::set_permissions(&script_path, permissions);
+                script_list.push(script_path);
+            }
+        }
 
         let mut group_result = Passed;
 
