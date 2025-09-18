@@ -125,8 +125,6 @@ impl ScriptChecks {
             if let Ok(metadata) = fs::metadata(&script_path) {
                 let mut permissions = metadata.permissions();
 
-                // Set permissions to read, write, and execute for owner (0o700)
-                // The `0o` prefix indicates an octal literal.
                 permissions.set_mode(0o700);
                 let _ = fs::set_permissions(&script_path, permissions);
                 script_list.push(script_path);
