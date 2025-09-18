@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+echo "EDERA_PREFLIGHT_CHECK_NAME=Can PVH Be Enabled"
+
 # prerequisites: msr-tools (rdmsr), and the msr kernel module
 modprobe msr 2>/dev/null || true
 

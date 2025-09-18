@@ -3,7 +3,6 @@ use super::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
-use log::debug;
 use std::process::Command;
 
 const GROUP_IDENTIFIER: &str = "HardwareChecks";
@@ -50,11 +49,7 @@ impl HardwareChecks {
 
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-        for line in stdout.lines() {
-            debug!("{}", line);
-        }
-
-        CheckResult::new(&name, Passed)
+        CheckResult::new_with_output(&name, Passed, Some(stdout))
     }
 
     fn record_lspci(&self) -> CheckResult {

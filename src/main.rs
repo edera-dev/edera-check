@@ -1,21 +1,84 @@
 use preflight::{
-    CheckGroup,
+    CheckGroup, CheckGroupResult,
     CheckResultValue::{Errored, Failed, Passed},
+    hardware::HardwareChecks,
     kernel::KernelChecks,
     script::ScriptChecks,
     system::SystemChecks,
-    hardware::HardwareChecks,
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
+use chrono::Utc;
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use log::info;
 use std::env;
+use std::fs;
+use std::fs::File;
 use std::os::unix;
+use std::path::{Path, PathBuf};
 
 // Skip certain groups. List is separated by ;
 fn skip_groups() -> Vec<String> {
     let skips = env::var("EDERA_PREFLIGHT_SKIP_GROUPS").unwrap_or_default();
     skips.split(";").map(|s| s.to_string()).collect()
+}
+
+fn create_gzip_from(base_path: PathBuf) -> Result<()> {
+    let mut archive_path = base_path.clone();
+    archive_path.set_extension("tar.gz");
+    let tar_gz = File::create(&archive_path)
+        .with_context(|| format!("failed to create {}", archive_path.display()))?;
+    let enc = GzEncoder::new(tar_gz, Compression::default());
+    let mut tar = tar::Builder::new(enc);
+    tar.append_dir_all(".", base_path)
+        .context("failed to append to tar {}")?;
+    info!("Wrote to: {}", archive_path.to_string_lossy());
+    Ok(())
+}
+
+fn create_base_path() -> Result<PathBuf> {
+    let now = Utc::now();
+
+    let base = env::var("EDERA_PREFLIGHT_REPORT_DIR")
+        .map(PathBuf::from)
+        .unwrap_or(env::temp_dir());
+
+    let base_path = base.join(format!(
+        "protect-preflight-bundle-{}",
+        now.format("%Y%m%d-%H%M%S")
+    ));
+    fs::create_dir_all(&base_path)
+        .with_context(|| format!("could not create {}", base_path.display()))?;
+    info!("Writing all files to {}", base_path.to_string_lossy());
+    Ok(base_path)
+}
+
+fn write_group_report(
+    group: Box<dyn CheckGroup>,
+    result: &CheckGroupResult,
+    path: &Path,
+) -> Result<()> {
+    let path = path.join(group.id());
+    fs::create_dir_all(&path).with_context(|| format!("could not create {}", path.display()))?;
+
+    for check in result.results.iter() {
+        // Sanitize the name of the check into a flat file. Script Checks default to the path of
+        // the script as the name so we need to sanitize.
+        let name = check
+            .name
+            .replace(" ", "_")
+            .replace("/", "_")
+            .replace(".", "");
+
+        let path = path.join(name);
+        match check.output_to_record.as_ref() {
+            Some(text) => fs::write(&path, text),
+            None => fs::write(&path, format!("{}", check.result)),
+        }
+        .with_context(|| format!("failed to write to {}", path.display()))?;
+    }
+    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -35,6 +98,9 @@ fn main() -> Result<()> {
         unix::fs::chroot(&target_dir)
             .map_err(|e| anyhow!("failed to chroot to {target_dir}: {e}"))?;
     }
+
+    let base_path =
+        create_base_path().map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
 
     // Run each check group
     for group in groups {
@@ -61,7 +127,11 @@ fn main() -> Result<()> {
         if matches!(check_group_result.result, Errored(_)) {
             final_result = Errored(String::from("group errored"));
         }
+
+        write_group_report(group, &check_group_result, &base_path)?;
     }
+
+    create_gzip_from(base_path)?;
 
     match final_result {
         Errored(_) | Failed(_) => bail!("Preflight checks did not pass"),

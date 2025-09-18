@@ -114,10 +114,7 @@ impl KernelChecks {
         // Search loaded modules
         let modules = procfs::KernelModules::current();
         if let Err(e) = modules {
-            return CheckResult {
-                name,
-                result: Errored(format!("getting kernel modules {e}")),
-            };
+            return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
         }
         let modules = modules.unwrap();
 

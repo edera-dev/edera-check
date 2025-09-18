@@ -33,13 +33,22 @@ pub struct CheckResult {
 
     /// result is the final result of an individual check
     pub result: CheckResultValue,
+
+    /// output_to_record is an optional field used to return output that should be recorded into an
+    /// information bundle
+    pub output_to_record: Option<String>,
 }
 
 impl CheckResult {
     pub fn new(name: &str, result: CheckResultValue) -> Self {
+        Self::new_with_output(name, result, None)
+    }
+
+    pub fn new_with_output(name: &str, result: CheckResultValue, output_to_record: Option<String>) -> Self {
         Self {
             name: name.to_string(),
             result,
+            output_to_record,
         }
     }
 }

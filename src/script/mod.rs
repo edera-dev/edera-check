@@ -147,7 +147,7 @@ impl ScriptChecks {
                 stderr
             )),
         };
-        CheckResult::new(&name, result)
+        CheckResult::new_with_output(&name, result, Some(stdout.to_string()))
     }
 }
 
