@@ -3,6 +3,8 @@ use super::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
+use log::debug;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const GROUP_IDENTIFIER: &str = "HardwareChecks";
@@ -12,7 +14,13 @@ pub struct HardwareChecks;
 
 impl HardwareChecks {
     pub fn run_all(&self) -> CheckGroupResult {
-        let results = vec![self.record_lspci(), self.record_dmidecode()];
+        let results = vec![
+            self.record_lspci(),
+            self.record_dmidecode(),
+            self.record_cpuinfo(),
+            self.record_cmdline(),
+            self.record_grub_cfg(),
+        ];
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -36,7 +44,16 @@ impl HardwareChecks {
     fn run_tool(&self, tool: &str) -> CheckResult {
         let name = format!("Record {tool}");
 
-        let output = Command::new(tool).output();
+        let mut tool_args: Vec<&str> = tool.split(" ").collect();
+        debug!("{:#?}", tool_args);
+        let cmd = tool_args.pop();
+        if cmd.is_none() {
+            return CheckResult::new(&name, Errored(format!("failed to parse command {tool}")));
+        }
+        let cmd = cmd.unwrap();
+
+        let output = Command::new(cmd).args(tool_args).output();
+        debug!("{:#?}", output);
         if let Err(e) = output {
             return CheckResult::new(&name, Errored(e.to_string()));
         }
@@ -58,6 +75,41 @@ impl HardwareChecks {
 
     fn record_dmidecode(&self) -> CheckResult {
         self.run_tool("dmidecode")
+    }
+
+    fn record_file(&self, file: &Path) -> CheckResult {
+        let name = format!("Record {}", file.display());
+        let output = std::fs::read_to_string(file);
+        if let Err(e) = output {
+            return CheckResult::new(
+                &name,
+                Errored(format!("failed to read {}: {e}", file.display())),
+            );
+        }
+        let output = output.unwrap();
+        CheckResult::new_with_output(&name, Passed, Some(output))
+    }
+
+    fn record_cpuinfo(&self) -> CheckResult {
+        self.record_file(PathBuf::from("/proc/cpuinfo").as_ref())
+    }
+
+    fn record_cmdline(&self) -> CheckResult {
+        self.record_file(PathBuf::from("/proc/cmdline").as_ref())
+    }
+
+    fn record_grub_cfg(&self) -> CheckResult {
+        let files = vec!["/boot/grub2/grub.cfg", "/boot/grub/grub.cfg"];
+        for file in files.iter() {
+            let file = PathBuf::from(file);
+            if file.exists() {
+                return self.record_file(&file);
+            }
+        }
+        CheckResult::new(
+            "Record grub config",
+            Errored(format!("failed to find any {:?}", files)),
+        )
     }
 }
 
