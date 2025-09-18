@@ -3,12 +3,13 @@ use super::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
-use log::debug;
-use sysinfo::System;
+use log::{debug, info, warn};
+use sysinfo::{Disks, System};
 
 const GROUP_IDENTIFIER: &str = "SystemChecks";
 const NAME: &str = "System Checks";
-const MINIMUM_MEMORY: u64 = 10000;
+const MINIMUM_MEMORY: u64 = 4 * 1024 * 1024 * 1024; // 4GB
+const MINIMUM_DISK: u64 = 20 * 1024 * 1024 * 1024; // 20GB
 
 pub struct SystemChecks;
 
@@ -53,7 +54,24 @@ impl SystemChecks {
 
     fn enough_disk(&self) -> CheckResult {
         let name = String::from("Enough Disk");
-        let mut result = Passed;
+        let mut result = Failed(String::from("Not enough disk space on any disk"));
+        let disks = Disks::new_with_refreshed_list();
+        for disk in &disks {
+            if disk.available_space() < MINIMUM_DISK {
+                debug!(
+                    "Not enough space on disk mounted at {} - {}",
+                    disk.mount_point().display(),
+                    disk.available_space()
+                );
+            } else {
+                debug!(
+                    "Enough space on disk mounted at {} - {}",
+                    disk.mount_point().display(),
+                    disk.available_space()
+                );
+                result = Passed;
+            }
+        }
         CheckResult::new(&name, result)
     }
 }

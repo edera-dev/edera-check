@@ -1,13 +1,16 @@
 use preflight::{
     CheckGroup,
     CheckResultValue::{Errored, Failed, Passed},
+    kernel::KernelChecks,
     script::ScriptChecks,
     system::SystemChecks,
+    hardware::HardwareChecks,
 };
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use log::info;
 use std::env;
+use std::os::unix;
 
 // Skip certain groups. List is separated by ;
 fn skip_groups() -> Vec<String> {
@@ -18,10 +21,20 @@ fn skip_groups() -> Vec<String> {
 fn main() -> Result<()> {
     env_logger::init();
 
-    let groups: Vec<Box<dyn CheckGroup>> = vec![Box::new(SystemChecks), Box::new(ScriptChecks)];
+    let groups: Vec<Box<dyn CheckGroup>> = vec![
+        Box::new(SystemChecks),
+        Box::new(ScriptChecks),
+        Box::new(KernelChecks),
+        Box::new(HardwareChecks),
+    ];
 
     let mut final_result = Passed;
     let skip_groups = skip_groups();
+
+    if let Ok(target_dir) = env::var("EDERA_PREFLIGHT_TARGET_DIR") {
+        unix::fs::chroot(&target_dir)
+            .map_err(|e| anyhow!("failed to chroot to {target_dir}: {e}"))?;
+    }
 
     // Run each check group
     for group in groups {

@@ -4,7 +4,7 @@ use super::{
 };
 
 use anyhow::Result;
-use log::warn;
+use log::{debug, warn};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -91,6 +91,9 @@ impl ScriptChecks {
                 );
                 continue;
             }
+            if entry.file_name() == "README.md" {
+                continue;
+            }
 
             scripts.push(entry.path());
         }
@@ -108,9 +111,9 @@ impl ScriptChecks {
     /// If the script runs successfully but exits with a non-zero exit code, then
     /// the check will reutrn a fail result.
     fn run_script(&self, path: &PathBuf) -> CheckResult {
-        let output = Command::new(path).output();
-
         let mut name = path.to_str().unwrap_or_default().to_string();
+
+        let output = Command::new(path).output();
 
         if let Err(e) = output {
             return CheckResult::new(&name, Errored(e.to_string()));
@@ -120,14 +123,16 @@ impl ScriptChecks {
         let output = output.unwrap();
 
         let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
 
         let mut check_name = None;
 
         for line in stdout.lines() {
             if let Some(value) = line.strip_prefix("EDERA_PREFLIGHT_CHECK_NAME=") {
                 check_name = Some(value.to_string());
-                break;
+                continue;
             }
+            debug!("{}", line);
         }
 
         if let Some(set_name) = check_name {
@@ -136,7 +141,11 @@ impl ScriptChecks {
 
         let result = match output.status.success() {
             true => Passed,
-            false => Failed(format!("script returned {:?}", output.status.code())),
+            false => Failed(format!(
+                "script returned {:?}: {}",
+                output.status.code(),
+                stderr
+            )),
         };
         CheckResult::new(&name, result)
     }

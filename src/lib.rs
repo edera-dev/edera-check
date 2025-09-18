@@ -116,5 +116,7 @@ pub trait CheckGroup {
 }
 
 // modules
+pub mod hardware;
+pub mod kernel;
 pub mod script;
 pub mod system;
