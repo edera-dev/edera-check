@@ -3,7 +3,6 @@ use super::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
-use log::debug;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -45,15 +44,9 @@ impl HardwareChecks {
         let name = format!("Record {tool}");
 
         let mut tool_args: Vec<&str> = tool.split(" ").collect();
-        debug!("{:#?}", tool_args);
-        let cmd = tool_args.pop();
-        if cmd.is_none() {
-            return CheckResult::new(&name, Errored(format!("failed to parse command {tool}")));
-        }
-        let cmd = cmd.unwrap();
+        let cmd = tool_args.remove(0);
 
         let output = Command::new(cmd).args(tool_args).output();
-        debug!("{:#?}", output);
         if let Err(e) = output {
             return CheckResult::new(&name, Errored(e.to_string()));
         }
@@ -70,7 +63,7 @@ impl HardwareChecks {
     }
 
     fn record_lspci(&self) -> CheckResult {
-        self.run_tool("lspci")
+        self.run_tool("lspci -vvv")
     }
 
     fn record_dmidecode(&self) -> CheckResult {

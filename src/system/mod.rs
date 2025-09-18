@@ -3,7 +3,7 @@ use super::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
-use log::{debug, info, warn};
+use log::debug;
 use sysinfo::{Disks, System};
 
 const GROUP_IDENTIFIER: &str = "SystemChecks";
