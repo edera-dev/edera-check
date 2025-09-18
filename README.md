@@ -11,11 +11,17 @@ Run inside Docker:
 
 ```bash
 docker run \
+  --pull always \
   --env RUST_LOG=debug \
   --env EDERA_PREFLIGHT_VERBOSE=true \
+  --env EDERA_PREFLIGHT_TARGET_DIR='/host' \
   --env EDERA_PREFLIGHT_SKIP_GROUPS='ScriptedChecks;SystemChecks' \
   --env EDERA_PREFLIGHT_SCRIPTS_DIR=/scripts \
-  <image>
+  --volume /:/host \
+  --pid host \
+  --net host \
+  --privileged \
+  us-central1-docker.pkg.dev/edera-protect/staging/protect-preflight:main
 ```
 
 ---
@@ -28,6 +34,8 @@ docker run \
 | `EDERA_PREFLIGHT_VERBOSE`     | Enable verbose output (`true`/`false`).                | `true`                        |
 | `EDERA_PREFLIGHT_SKIP_GROUPS` | Semicolon-separated list of groups to skip.            | `SystemChecks;ScriptedChecks` |
 | `EDERA_PREFLIGHT_SCRIPTS_DIR` | Directory containing custom shell-script checks.       | `/scripts`                    |
+| `EDERA_PREFLIGHT_TARGET_DIR` | Directory to chroot to before running checks. Needed when running in a container.       | `/host`                    |
+| `EDERA_PREFLIGHT_REPORT_DIR` | Directory to write a report to. Defaults to tmpdir       | `/tmp`                    |
 
 ---
 
