@@ -1,3 +1,5 @@
+pub mod host_executor;
+
 use log::{error, info, warn};
 use std::fmt;
 
@@ -44,7 +46,11 @@ impl CheckResult {
         Self::new_with_output(name, result, None)
     }
 
-    pub fn new_with_output(name: &str, result: CheckResultValue, output_to_record: Option<String>) -> Self {
+    pub fn new_with_output(
+        name: &str,
+        result: CheckResultValue,
+        output_to_record: Option<String>,
+    ) -> Self {
         Self {
             name: name.to_string(),
             result,
@@ -123,9 +129,3 @@ pub trait CheckGroup {
     /// run is the main entry point that runs the checks within the check group.
     fn run(&self) -> CheckGroupResult;
 }
-
-// modules
-pub mod hardware;
-pub mod kernel;
-pub mod script;
-pub mod system;

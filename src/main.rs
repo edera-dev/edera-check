@@ -1,22 +1,27 @@
-use preflight::{
+mod checkers;
+mod recorders;
+mod helpers;
+
+use helpers::{
     CheckGroup, CheckGroupResult,
-    CheckResultValue::{Errored, Failed, Passed},
-    hardware::HardwareChecks,
+    CheckResultValue::{Errored, Failed, Passed}};
+
+use checkers::{
     kernel::KernelChecks,
     script::ScriptChecks,
     system::SystemChecks,
 };
 
+use recorders::system::SystemRecorder;
+
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
-use flate2::Compression;
-use flate2::write::GzEncoder;
+use flate2::{Compression, write::GzEncoder};
 use log::info;
 use std::env;
-use std::fs;
-use std::fs::File;
 use std::os::unix;
 use std::path::{Path, PathBuf};
+use std::{fs, fs::File};
 
 // Skip certain groups. List is separated by ;
 fn skip_groups() -> Vec<String> {
@@ -88,7 +93,7 @@ fn main() -> Result<()> {
         Box::new(SystemChecks),
         Box::new(ScriptChecks),
         Box::new(KernelChecks),
-        Box::new(HardwareChecks),
+        Box::new(SystemRecorder),
     ];
 
     let mut final_result = Passed;

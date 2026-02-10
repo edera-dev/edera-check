@@ -1,17 +1,17 @@
-use super::{
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
 };
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+const GROUP_IDENTIFIER: &str = "SystemRecorder";
+const NAME: &str = "System Info Recorder";
 
-const GROUP_IDENTIFIER: &str = "HardwareChecks";
-const NAME: &str = "Hardware Checks";
+pub struct SystemRecorder;
 
-pub struct HardwareChecks;
-
-impl HardwareChecks {
+impl SystemRecorder {
     pub fn run_all(&self) -> CheckGroupResult {
         let results = vec![
             self.record_lspci(),
@@ -106,7 +106,7 @@ impl HardwareChecks {
     }
 }
 
-impl CheckGroup for HardwareChecks {
+impl CheckGroup for SystemRecorder {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
     }
@@ -116,7 +116,7 @@ impl CheckGroup for HardwareChecks {
     }
 
     fn description(&self) -> &str {
-        "Hardware requirement checks - records for informational purposes"
+        "System requirement and status checks - records for informational purposes"
     }
 
     fn run(&self) -> CheckGroupResult {

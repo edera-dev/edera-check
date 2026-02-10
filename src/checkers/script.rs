@@ -1,4 +1,4 @@
-use super::{
+use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
 };
