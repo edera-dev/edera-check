@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
     let groups: Vec<Box<dyn CheckGroup>> = vec![
         Box::new(SystemChecks),
         Box::new(ScriptChecks),
-        Box::new(KernelChecks),
+        Box::new(KernelChecks::new(host_executor.clone())),
         Box::new(SystemRecorder::new(host_executor.clone())),
     ];
 
