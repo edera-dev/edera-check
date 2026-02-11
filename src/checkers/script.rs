@@ -121,14 +121,14 @@ impl ScriptChecks {
         // will be self contained.
         let script_path = env::temp_dir().join("edera_preflight_pvh.sh");
         let r = fs::write(&script_path, PVH_SCRIPT);
-        if r.is_ok() {
-            if let Ok(metadata) = fs::metadata(&script_path) {
-                let mut permissions = metadata.permissions();
+        if r.is_ok()
+            && let Ok(metadata) = fs::metadata(&script_path)
+        {
+            let mut permissions = metadata.permissions();
 
-                permissions.set_mode(0o700);
-                let _ = fs::set_permissions(&script_path, permissions);
-                script_list.push(script_path);
-            }
+            permissions.set_mode(0o700);
+            let _ = fs::set_permissions(&script_path, permissions);
+            script_list.push(script_path);
         }
 
         let mut group_result = Passed;

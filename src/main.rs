@@ -1,16 +1,13 @@
 mod checkers;
-mod recorders;
 mod helpers;
+mod recorders;
 
 use helpers::{
     CheckGroup, CheckGroupResult,
-    CheckResultValue::{Errored, Failed, Passed}};
-
-use checkers::{
-    kernel::KernelChecks,
-    script::ScriptChecks,
-    system::SystemChecks,
+    CheckResultValue::{Errored, Failed, Passed},
 };
+
+use checkers::{kernel::KernelChecks, script::ScriptChecks, system::SystemChecks};
 
 use recorders::system::SystemRecorder;
 
