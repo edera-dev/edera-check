@@ -3,6 +3,7 @@ use crate::helpers::{
     CheckResultValue::{Errored, Failed, Passed},
 };
 
+use async_trait::async_trait;
 use log::debug;
 use sysinfo::{Disks, System};
 
@@ -76,6 +77,7 @@ impl SystemChecks {
     }
 }
 
+#[async_trait]
 impl CheckGroup for SystemChecks {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
@@ -89,7 +91,7 @@ impl CheckGroup for SystemChecks {
         "System requirement checks"
     }
 
-    fn run(&self) -> CheckGroupResult {
+    async fn run(&self) -> CheckGroupResult {
         self.run_all()
     }
 }

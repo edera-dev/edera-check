@@ -17,7 +17,6 @@ docker run \
   --env EDERA_PREFLIGHT_TARGET_DIR='/host' \
   --env EDERA_PREFLIGHT_SKIP_GROUPS='ScriptedChecks;SystemChecks' \
   --env EDERA_PREFLIGHT_SCRIPTS_DIR=/scripts \
-  --volume /:/host \
   --pid host \
   --net host \
   --privileged \

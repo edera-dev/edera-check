@@ -1,25 +1,38 @@
+use async_trait::async_trait;
+use futures::FutureExt;
+use futures::future::join_all;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
+    host_executor::HostNamespaceExecutor,
 };
 
 const GROUP_IDENTIFIER: &str = "SystemRecorder";
 const NAME: &str = "System Info Recorder";
 
-pub struct SystemRecorder;
+pub struct SystemRecorder {
+    host_executor: HostNamespaceExecutor,
+}
 
 impl SystemRecorder {
-    pub fn run_all(&self) -> CheckGroupResult {
-        let results = vec![
-            self.record_lspci(),
-            self.record_dmidecode(),
-            self.record_cpuinfo(),
-            self.record_cmdline(),
-            self.record_grub_cfg(),
-        ];
+    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
+        SystemRecorder { host_executor }
+    }
+
+    /// Run all the recorders asynchronously, then
+    /// join and collect the results.
+    pub async fn run_all(&self) -> CheckGroupResult {
+        let results = join_all([
+            self.record_lspci().boxed(),
+            self.record_dmidecode().boxed(),
+            self.record_cpuinfo().boxed(),
+            self.record_cmdline().boxed(),
+            self.record_grub_cfg().boxed(),
+        ])
+        .await;
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -40,17 +53,25 @@ impl SystemRecorder {
         }
     }
 
-    fn run_tool(&self, tool: &str) -> CheckResult {
+    /// Runs the given command + args in host namespaces and captures the results.
+    async fn run_tool(&self, tool: &str) -> CheckResult {
         let name = format!("Record {tool}");
-
-        let mut tool_args: Vec<&str> = tool.split(" ").collect();
+        let mut tool_args: Vec<String> = tool.split(" ").map(|s| s.to_string()).collect();
         let cmd = tool_args.remove(0);
 
-        let output = Command::new(cmd).args(tool_args).output();
-        if let Err(e) = output {
-            return CheckResult::new(&name, Errored(e.to_string()));
-        }
-        let output = output.unwrap();
+        let output = match self
+            .host_executor
+            .spawn_in_host_ns(async move { Command::new(cmd).args(tool_args).output() })
+            .await
+        {
+            Ok(output) => output,
+            Err(e) => return CheckResult::new(&name, Errored(e.to_string())),
+        };
+
+        let output = match output {
+            Ok(output) => output,
+            Err(e) => return CheckResult::new(&name, Errored(e.to_string())),
+        };
 
         if !output.status.success() {
             let error_message = String::from_utf8_lossy(&output.stderr);
@@ -58,45 +79,61 @@ impl SystemRecorder {
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
         CheckResult::new_with_output(&name, Passed, Some(stdout))
     }
 
-    fn record_lspci(&self) -> CheckResult {
-        self.run_tool("lspci -vvv")
+    /// Captures the content of a given file on the host.
+    async fn record_file(&self, file: &Path) -> Option<CheckResult> {
+        let local_file = file.to_path_buf();
+
+        self.host_executor
+            .spawn_in_host_ns(async move {
+                if !local_file.exists() {
+                    return None;
+                }
+                let name = format!("Record {}", local_file.display());
+                let output = tokio::fs::read_to_string(&local_file).await;
+                if let Err(e) = output {
+                    return Some(CheckResult::new(
+                        &name,
+                        Errored(format!("failed to read {}: {e}", local_file.display())),
+                    ));
+                }
+                let output = output.unwrap();
+                Some(CheckResult::new_with_output(&name, Passed, Some(output)))
+            })
+            .await
+            .unwrap_or_else(|_| panic!("could not record {}", file.display()))
     }
 
-    fn record_dmidecode(&self) -> CheckResult {
-        self.run_tool("dmidecode")
+    async fn record_lspci(&self) -> CheckResult {
+        self.run_tool("lspci -vvv").await
     }
 
-    fn record_file(&self, file: &Path) -> CheckResult {
-        let name = format!("Record {}", file.display());
-        let output = std::fs::read_to_string(file);
-        if let Err(e) = output {
-            return CheckResult::new(
-                &name,
-                Errored(format!("failed to read {}: {e}", file.display())),
-            );
-        }
-        let output = output.unwrap();
-        CheckResult::new_with_output(&name, Passed, Some(output))
+    async fn record_dmidecode(&self) -> CheckResult {
+        self.run_tool("dmidecode").await
     }
 
-    fn record_cpuinfo(&self) -> CheckResult {
+    async fn record_cpuinfo(&self) -> CheckResult {
         self.record_file(PathBuf::from("/proc/cpuinfo").as_ref())
+            .await
+            .expect("/proc/cpuinfo not found")
     }
 
-    fn record_cmdline(&self) -> CheckResult {
+    async fn record_cmdline(&self) -> CheckResult {
         self.record_file(PathBuf::from("/proc/cmdline").as_ref())
+            .await
+            .expect("/proc/cmdline not found")
     }
 
-    fn record_grub_cfg(&self) -> CheckResult {
-        let files = vec!["/boot/grub2/grub.cfg", "/boot/grub/grub.cfg"];
-        for file in files.iter() {
-            let file = PathBuf::from(file);
-            if file.exists() {
-                return self.record_file(&file);
+    async fn record_grub_cfg(&self) -> CheckResult {
+        // prefer grub2 path, since if both are present for any reason,
+        // that is likely to be the "correct" one.
+        let files = ["/boot/grub2/grub.cfg", "/boot/grub/grub.cfg"];
+
+        for file in files {
+            if let Some(result) = self.record_file(&PathBuf::from(file)).await {
+                return result;
             }
         }
         CheckResult::new(
@@ -106,6 +143,7 @@ impl SystemRecorder {
     }
 }
 
+#[async_trait]
 impl CheckGroup for SystemRecorder {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
@@ -119,7 +157,7 @@ impl CheckGroup for SystemRecorder {
         "System requirement and status checks - records for informational purposes"
     }
 
-    fn run(&self) -> CheckGroupResult {
-        self.run_all()
+    async fn run(&self) -> CheckGroupResult {
+        self.run_all().await
     }
 }

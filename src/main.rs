@@ -2,23 +2,24 @@ mod checkers;
 mod helpers;
 mod recorders;
 
+use checkers::{kernel::KernelChecks, script::ScriptChecks, system::SystemChecks};
 use helpers::{
     CheckGroup, CheckGroupResult,
     CheckResultValue::{Errored, Failed, Passed},
+    host_executor::HostNamespaceExecutor,
 };
-
-use checkers::{kernel::KernelChecks, script::ScriptChecks, system::SystemChecks};
-
 use recorders::system::SystemRecorder;
 
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use flate2::{Compression, write::GzEncoder};
 use log::info;
-use std::env;
-use std::os::unix;
-use std::path::{Path, PathBuf};
-use std::{fs, fs::File};
+use std::{
+    env, fs,
+    fs::File,
+    path::{Path, PathBuf},
+};
+use tokio::task::JoinHandle;
 
 // Skip certain groups. List is separated by ;
 fn skip_groups() -> Vec<String> {
@@ -26,7 +27,9 @@ fn skip_groups() -> Vec<String> {
     skips.split(";").map(|s| s.to_string()).collect()
 }
 
-fn create_gzip_from(base_path: PathBuf) -> Result<()> {
+/// This writes the gzip to the container namespace /tmp, and then copies it out to
+/// the same path on the host at the end.
+async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecutor) -> Result<()> {
     let mut archive_path = base_path.clone();
     archive_path.set_extension("tar.gz");
     let tar_gz = File::create(&archive_path)
@@ -35,8 +38,23 @@ fn create_gzip_from(base_path: PathBuf) -> Result<()> {
     let mut tar = tar::Builder::new(enc);
     tar.append_dir_all(".", base_path)
         .context("failed to append to tar {}")?;
-    info!("Wrote to: {}", archive_path.to_string_lossy());
-    Ok(())
+    tar.into_inner().context("failed to finish tar")?;
+    let container_tarfile = archive_path.to_string_lossy().to_string();
+
+    let targz_content = std::fs::read(&container_tarfile).expect("could not read tar");
+
+    info!("Read {} bytes of tar", targz_content.len());
+
+    let copy_to_host: JoinHandle<()> = host_executor.spawn_in_host_ns(async move {
+        // Write tar.gz to host
+        tokio::fs::write(&container_tarfile, targz_content)
+            .await
+            .expect("could not write tar to host");
+
+        info!("Wrote to: {}", container_tarfile);
+    });
+
+    Ok(copy_to_host.await?)
 }
 
 fn create_base_path() -> Result<PathBuf> {
@@ -83,23 +101,21 @@ fn write_group_report(
     Ok(())
 }
 
-fn main() -> Result<()> {
+#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
+async fn main() -> Result<()> {
     env_logger::init();
+
+    let host_executor = HostNamespaceExecutor::new();
 
     let groups: Vec<Box<dyn CheckGroup>> = vec![
         Box::new(SystemChecks),
         Box::new(ScriptChecks),
         Box::new(KernelChecks),
-        Box::new(SystemRecorder),
+        Box::new(SystemRecorder::new(host_executor.clone())),
     ];
 
     let mut final_result = Passed;
     let skip_groups = skip_groups();
-
-    if let Ok(target_dir) = env::var("EDERA_PREFLIGHT_TARGET_DIR") {
-        unix::fs::chroot(&target_dir)
-            .map_err(|e| anyhow!("failed to chroot to {target_dir}: {e}"))?;
-    }
 
     let base_path =
         create_base_path().map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
@@ -113,7 +129,7 @@ fn main() -> Result<()> {
 
         info!("Running Group [{}] - {}", group.name(), group.description());
 
-        let check_group_result = group.run();
+        let check_group_result = group.run().await;
 
         check_group_result.log_group();
 
@@ -133,7 +149,7 @@ fn main() -> Result<()> {
         write_group_report(group, &check_group_result, &base_path)?;
     }
 
-    create_gzip_from(base_path)?;
+    create_gzip_from(base_path, host_executor.clone()).await?;
 
     match final_result {
         Errored(_) | Failed(_) => bail!("Preflight checks did not pass"),

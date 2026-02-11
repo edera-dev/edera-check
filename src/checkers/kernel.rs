@@ -4,6 +4,7 @@ use crate::helpers::{
 };
 
 use anyhow::{Result, bail};
+use async_trait::async_trait;
 use log::debug;
 use procfs::{Current, sys::kernel};
 use std::fs;
@@ -136,6 +137,7 @@ impl KernelChecks {
     }
 }
 
+#[async_trait]
 impl CheckGroup for KernelChecks {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
@@ -149,7 +151,7 @@ impl CheckGroup for KernelChecks {
         "Kernel requirement checks"
     }
 
-    fn run(&self) -> CheckGroupResult {
+    async fn run(&self) -> CheckGroupResult {
         self.run_all()
     }
 }

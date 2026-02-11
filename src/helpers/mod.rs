@@ -1,5 +1,6 @@
 pub mod host_executor;
 
+use async_trait::async_trait;
 use log::{error, info, warn};
 use std::fmt;
 
@@ -115,6 +116,7 @@ impl CheckGroupResult {
 }
 
 /// CheckGroup is a trait representing a group of checks.
+#[async_trait]
 pub trait CheckGroup {
     /// name is the name of the check group
     fn name(&self) -> &str;
@@ -127,5 +129,5 @@ pub trait CheckGroup {
     fn description(&self) -> &str;
 
     /// run is the main entry point that runs the checks within the check group.
-    fn run(&self) -> CheckGroupResult;
+    async fn run(&self) -> CheckGroupResult;
 }

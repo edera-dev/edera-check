@@ -4,6 +4,7 @@ use crate::helpers::{
 };
 
 use anyhow::Result;
+use async_trait::async_trait;
 use log::{debug, warn};
 use std::env;
 use std::fs;
@@ -249,6 +250,7 @@ impl ScriptChecks {
     }
 }
 
+#[async_trait]
 impl CheckGroup for ScriptChecks {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
@@ -262,7 +264,7 @@ impl CheckGroup for ScriptChecks {
         "Checks composed through small shell scripts"
     }
 
-    fn run(&self) -> CheckGroupResult {
+    async fn run(&self) -> CheckGroupResult {
         self.run_all()
     }
 }

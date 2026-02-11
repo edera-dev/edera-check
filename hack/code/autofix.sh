@@ -4,5 +4,5 @@ set -e
 REAL_SCRIPT="$(realpath "${0}")"
 cd "$(dirname "${REAL_SCRIPT}")/../.."
 
-cargo clippy --all --fix --allow-dirty --allow-staged
-cargo fmt --all
+./hack/build/cargo.sh clippy --all --fix --allow-dirty --allow-staged
+./hack/build/cargo.sh fmt --all
