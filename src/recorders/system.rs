@@ -1,8 +1,12 @@
+use anyhow::{Result, bail};
 use async_trait::async_trait;
-use futures::FutureExt;
-use futures::future::join_all;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use flate2::read::GzDecoder;
+use futures::{FutureExt, future::join_all};
+use std::{
+    io::Read,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
@@ -31,6 +35,7 @@ impl SystemRecorder {
             self.record_cpuinfo().boxed(),
             self.record_cmdline().boxed(),
             self.record_grub_cfg().boxed(),
+            self.record_kernel_cfg().boxed(),
         ])
         .await;
 
@@ -92,15 +97,34 @@ impl SystemRecorder {
                     return None;
                 }
                 let name = format!("Record {}", local_file.display());
-                let output = tokio::fs::read_to_string(&local_file).await;
-                if let Err(e) = output {
-                    return Some(CheckResult::new(
+
+                let bytes = match tokio::fs::read(&local_file).await {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return Some(CheckResult::new(
+                            &name,
+                            Errored(format!("failed to read {}: {e}", local_file.display())),
+                        ));
+                    }
+                };
+
+                let content = if bytes.starts_with(&[0x1f, 0x8b]) {
+                    // Gzip magic bytes detected
+                    let mut decoder = GzDecoder::new(&bytes[..]);
+                    let mut s = String::new();
+                    decoder.read_to_string(&mut s).map(|_| s)
+                } else {
+                    String::from_utf8(bytes)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+                };
+
+                match content {
+                    Ok(c) => Some(CheckResult::new_with_output(&name, Passed, Some(c))),
+                    Err(e) => Some(CheckResult::new(
                         &name,
-                        Errored(format!("failed to read {}: {e}", local_file.display())),
-                    ));
+                        Errored(format!("failed to decode {}: {e}", local_file.display())),
+                    )),
                 }
-                let output = output.unwrap();
-                Some(CheckResult::new_with_output(&name, Passed, Some(output)))
             })
             .await
             .unwrap_or_else(|_| panic!("could not record {}", file.display()))
@@ -140,6 +164,42 @@ impl SystemRecorder {
             "Record grub config",
             Errored(format!("failed to find any {:?}", files)),
         )
+    }
+
+    async fn record_kernel_cfg(&self) -> CheckResult {
+        let name = "Record kernel config";
+        // Get kernel version
+        //
+        let Ok(kver) = self.current_kernel_version().await else {
+            return CheckResult::new(name, Errored("failed to find kernel version".to_string()));
+        };
+
+        let files = ["/proc/config.gz", &format!("boot/config-{kver}")];
+
+        for file in files {
+            if let Some(result) = self.record_file(&PathBuf::from(file)).await {
+                return result;
+            }
+        }
+        CheckResult::new(name, Errored(format!("failed to find any {:?}", files)))
+    }
+
+    async fn current_kernel_version(&self) -> Result<String> {
+        self.host_executor
+            .spawn_in_host_ns(async {
+                let output = Command::new("uname")
+                    .arg("-r")
+                    .output()
+                    .expect("Failed to execute command");
+
+                if !output.status.success() {
+                    let error_message = String::from_utf8_lossy(&output.stderr);
+                    bail!("{}", error_message);
+                }
+
+                Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+            })
+            .await?
     }
 }
 
