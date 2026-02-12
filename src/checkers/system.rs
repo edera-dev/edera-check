@@ -1,8 +1,10 @@
 use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
+    host_executor::HostNamespaceExecutor,
 };
 
+use futures::{FutureExt, future::join_all};
 use async_trait::async_trait;
 use log::debug;
 use sysinfo::{Disks, System};
@@ -12,11 +14,16 @@ const NAME: &str = "System Checks";
 const MINIMUM_MEMORY: u64 = 4 * 1024 * 1024 * 1024; // 4GB
 const MINIMUM_DISK: u64 = 20 * 1024 * 1024 * 1024; // 20GB
 
-pub struct SystemChecks;
+pub struct SystemChecks {
+    host_executor: HostNamespaceExecutor,
+}
 
 impl SystemChecks {
-    pub fn run_all(&self) -> CheckGroupResult {
-        let results = vec![self.enough_memory(), self.enough_disk()];
+    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
+        SystemChecks { host_executor }
+    }
+    pub async fn run_all(&self) -> CheckGroupResult {
+        let results = join_all([self.enough_memory().boxed(), self.enough_disk().boxed()]).await;
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -37,12 +44,25 @@ impl SystemChecks {
         }
     }
 
-    fn enough_memory(&self) -> CheckResult {
+    async fn enough_memory(&self) -> CheckResult {
         let name = String::from("Enough Memory");
-        let mut sys = System::new_all();
-        sys.refresh_all();
 
-        let total_mem = sys.total_memory();
+        let total_mem = match self
+            .host_executor
+            .spawn_in_host_ns(async {
+                let mut sys = System::new_all();
+                sys.refresh_all();
+
+                sys.total_memory()
+            })
+            .await
+        {
+            Ok(mem) => mem,
+            Err(e) => {
+                return CheckResult::new(&name, Errored(e.to_string()));
+            }
+        };
+
         debug!("total memory = {total_mem}");
 
         let mut result = Passed;
@@ -53,26 +73,40 @@ impl SystemChecks {
         CheckResult::new(&name, result)
     }
 
-    fn enough_disk(&self) -> CheckResult {
+    async fn enough_disk(&self) -> CheckResult {
         let name = String::from("Enough Disk");
-        let mut result = Failed(String::from("Not enough disk space on any disk"));
-        let disks = Disks::new_with_refreshed_list();
-        for disk in &disks {
-            if disk.available_space() < MINIMUM_DISK {
-                debug!(
-                    "Not enough space on disk mounted at {} - {}",
-                    disk.mount_point().display(),
-                    disk.available_space()
-                );
-            } else {
-                debug!(
-                    "Enough space on disk mounted at {} - {}",
-                    disk.mount_point().display(),
-                    disk.available_space()
-                );
-                result = Passed;
+
+        let result = match self
+            .host_executor
+            .spawn_in_host_ns(async {
+                let mut result = Failed(String::from("Not enough disk space on any disk"));
+                let disks = Disks::new_with_refreshed_list();
+                for disk in &disks {
+                    if disk.available_space() < MINIMUM_DISK {
+                        debug!(
+                            "Not enough space on disk mounted at {} - {}",
+                            disk.mount_point().display(),
+                            disk.available_space()
+                        );
+                    } else {
+                        debug!(
+                            "Enough space on disk mounted at {} - {}",
+                            disk.mount_point().display(),
+                            disk.available_space()
+                        );
+                        result = Passed;
+                    }
+                }
+                result
+            })
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                return CheckResult::new(&name, Errored(e.to_string()));
             }
-        }
+        };
+
         CheckResult::new(&name, result)
     }
 }
@@ -92,6 +126,6 @@ impl CheckGroup for SystemChecks {
     }
 
     async fn run(&self) -> CheckGroupResult {
-        self.run_all()
+        self.run_all().await
     }
 }

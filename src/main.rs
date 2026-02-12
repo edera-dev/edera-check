@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
     let host_executor = HostNamespaceExecutor::new();
 
     let groups: Vec<Box<dyn CheckGroup>> = vec![
-        Box::new(SystemChecks),
+        Box::new(SystemChecks::new(host_executor.clone())),
         Box::new(ScriptChecks),
         Box::new(KernelChecks::new(host_executor.clone())),
         Box::new(SystemRecorder::new(host_executor.clone())),
