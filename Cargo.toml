@@ -2,6 +2,7 @@
 name = "preflight"
 version = "0.1.0"
 edition = "2024"
+description = "CLI to run pre-deployment checks before running workloads."
 
 [dependencies]
 anyhow = "1.0.99"
@@ -12,3 +13,9 @@ log = "0.4.28"
 procfs = "0.18.0"
 sysinfo = "0.36.1"
 tar = "0.4.44"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
+tokio-stream = { version = "0.1", features = ["io-util", "net"] }
+nix = { version= "0.31", features = ["sched"] }
+futures = "0.3"
+async-trait = "0.1"
