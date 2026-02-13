@@ -5,7 +5,7 @@ VER=$(date +%s)
 USERIMG=$(whoami)
 REGISTRY="localhost"
 
-docker build . -f ./images/Dockerfile.preflight -t "${REGISTRY}/${USERIMG}-preflight-debug:${VER}"
+docker build . -f ./images/Containerfile.preflight -t "${REGISTRY}/${USERIMG}-preflight-debug:${VER}"
 
 docker run --privileged --pid="host" \
   -e RUST_LOG="debug" \

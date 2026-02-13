@@ -10,4 +10,3 @@ RUN mv ./target/$(./hack/build/target.sh)/release/preflight /usr/sbin
 FROM cgr.dev/chainguard/wolfi-base:latest
 ENTRYPOINT ["/usr/sbin/preflight"]
 COPY --from=build /usr/sbin/preflight /usr/sbin/preflight
-COPY --from=build /usr/src/app/scripts /scripts
