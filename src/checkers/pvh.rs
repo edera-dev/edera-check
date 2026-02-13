@@ -1,0 +1,307 @@
+use crate::helpers::{
+    CheckGroup, CheckGroupResult, CheckResult,
+    CheckResultValue::{Errored, Failed, Passed, Skipped},
+    host_executor::HostNamespaceExecutor,
+};
+use anyhow::{Result, bail};
+use async_trait::async_trait;
+use futures::{FutureExt, future::join_all};
+use log::{debug, warn};
+use std::{
+    fs,
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::Path,
+    process::Command,
+};
+
+const GROUP_IDENTIFIER: &str = "PVHChecks";
+const NAME: &str = "PVH Checks";
+
+#[derive(Debug, PartialEq)]
+enum VirtStatus {
+    Enabled,      // Currently active
+    CanBeEnabled, // Available but not active
+    Disabled,     // Not available or BIOS disabled
+}
+
+pub struct PVHChecks {
+    host_executor: HostNamespaceExecutor,
+}
+
+#[cfg(target_arch = "x86_64")]
+impl PVHChecks {
+    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
+        PVHChecks { host_executor }
+    }
+
+    /// Run all the checkers asynchronously, then
+    /// join and collect the results.
+    pub async fn run_all(&self) -> CheckGroupResult {
+        let results = join_all([self.check_virtualization().boxed()]).await;
+
+        let mut group_result = Skipped;
+        for res in results.iter() {
+            // Set group result to Failed if we failed and aren't already in an Errored state
+            if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {
+                group_result = Failed(String::from("group failed"));
+            }
+
+            if matches!(res.result, Errored(_)) {
+                group_result = Errored(String::from("group errored"));
+            }
+        }
+
+        CheckGroupResult {
+            name: NAME.to_string(),
+            result: group_result,
+            results,
+        }
+    }
+
+    async fn ensure_msr_modprobe(&self) {
+        let _ = self
+            .host_executor
+            .spawn_in_host_ns(async {
+                // Load msr kernel module (ignore errors)
+                Command::new("modprobe").arg("msr").output()
+            })
+            .await;
+    }
+
+    async fn check_virtualization(&self) -> CheckResult {
+        let name = String::from("PVH Support");
+
+        self.ensure_msr_modprobe().await;
+
+        match self.discover_cpu_virtualization().await {
+            Ok(VirtStatus::Enabled) | Ok(VirtStatus::CanBeEnabled) => {
+                debug!("Virtualization is enabled or can be enabled");
+                CheckResult::new(&name, Passed)
+            }
+            Ok(VirtStatus::Disabled) => {
+                debug!("Virtualization disabled");
+                CheckResult::new(
+                    &name,
+                    Failed(String::from("PVH Not Supported, Virtualization Disabled")),
+                )
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                CheckResult::new(&name, Errored(e.to_string()))
+            }
+        }
+    }
+
+    async fn discover_cpu_virtualization(&self) -> Result<VirtStatus> {
+        let cpuinfo = self
+            .host_executor
+            .spawn_in_host_ns(async { fs::read_to_string("/proc/cpuinfo") })
+            .await??;
+
+        let cpu_vendor = extract_cpu_vendor(&cpuinfo);
+        let flags = extract_flags(&cpuinfo);
+
+        match cpu_vendor.as_str() {
+            "GenuineIntel" => self.check_intel(&flags).await,
+            "AuthenticAMD" => self.check_amd(&flags).await,
+            _ => {
+                eprintln!("Unknown CPU vendor: {}", cpu_vendor);
+                Ok(VirtStatus::Disabled)
+            }
+        }
+    }
+
+    async fn check_intel(&self, flags: &str) -> Result<VirtStatus> {
+        let has_vmx = flags.split_whitespace().any(|f| f == "vmx");
+        let cpuid = 0; // TODO(bml) check all CPUs
+        let under_hypervisor = flags.split_whitespace().any(|f| f == "hypervisor");
+
+        // Always try to read MSRs to report BIOS settings, even if CPU lacks support
+        match self.read_msr(0x3a, cpuid).await {
+            Ok(val) => {
+                let lock = val & 1;
+                let vmx_outside_smx = (val >> 2) & 1;
+                let hw_supports = lock == 1 && vmx_outside_smx == 1;
+                debug!(
+                    "IA32_FEATURE_CONTROL=0x{:x} (lock={}, vmx_outside_smx={})",
+                    val, lock, vmx_outside_smx
+                );
+
+                if !hw_supports {
+                    debug!("Intel VT-x disabled in BIOS or not supported by hardware");
+                    Ok(VirtStatus::Disabled)
+                } else if has_vmx {
+                    debug!("Intel VT-x supported and available (vmx flag present)");
+                    Ok(VirtStatus::Enabled)
+                } else if under_hypervisor {
+                    debug!("Intel VT-x supported but unavailable under hypervisor");
+                    Ok(VirtStatus::CanBeEnabled)
+                } else {
+                    debug!("Intel VT-x supported by system but not current CPU");
+                    Ok(VirtStatus::Disabled)
+                }
+            }
+            Err(e) => {
+                debug!("error reading MSR registers: {e}");
+                warn!("could not read MSR registers, falling back to cpuinfo detection");
+                if !has_vmx {
+                    debug!("CPU does not support Intel VT-x");
+                    Ok(VirtStatus::Disabled)
+                } else {
+                    debug!("vmx flag present, assuming hardware supports it");
+                    Ok(VirtStatus::CanBeEnabled)
+                }
+            }
+        }
+    }
+
+    async fn check_amd(&self, flags: &str) -> Result<VirtStatus> {
+        let has_svm = flags.split_whitespace().any(|f| f == "svm");
+        let cpuid = 0; // TODO(bml) check all CPUs
+        let under_hypervisor = flags.split_whitespace().any(|f| f == "hypervisor");
+
+        // Always try to read MSRs to report BIOS settings, even if CPU lacks support
+        match self.read_msr(0xC0010114, cpuid).await {
+            Ok(vmcr) => {
+                let svmdis = (vmcr >> 4) & 1;
+                let hw_supports = svmdis == 0;
+                debug!("VM_CR=0x{:x} (svmdis={})", vmcr, svmdis);
+
+                if !hw_supports {
+                    debug!("AMD-V disabled in BIOS or not supported by hardware");
+                    Ok(VirtStatus::Disabled)
+                } else {
+                    // Hardware supports AMD-V - check current state
+                    match self.read_msr(0xC0000080, cpuid).await {
+                        Ok(efer) => {
+                            let svme = (efer >> 12) & 1;
+                            debug!("EFER=0x{:x} (SVME={})", efer, svme);
+                            if has_svm {
+                                if svme == 1 {
+                                    debug!("AMD-V currently enabled and active");
+                                    Ok(VirtStatus::Enabled)
+                                } else {
+                                    debug!("AMD-V supported and available (can be enabled)");
+                                    Ok(VirtStatus::CanBeEnabled)
+                                }
+                            } else if under_hypervisor && (svme == 0 || svme == 1) {
+                                debug!("AMD-V supported but unavailable under hypervisor");
+                                // Hardware supports but flag absent - likely masked by hypervisor
+                                Ok(VirtStatus::CanBeEnabled)
+                            } else {
+                                debug!("AMD-V supported by system but not current CPU");
+                                Ok(VirtStatus::Disabled)
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("WARN: Cannot read EFER: {}", e);
+                            if has_svm {
+                                eprintln!(
+                                    "      Hardware supports AMD-V, assuming it can be enabled"
+                                );
+                                Ok(VirtStatus::CanBeEnabled)
+                            } else {
+                                eprintln!("      Cannot determine if AMD-V can be used");
+                                Ok(VirtStatus::Disabled)
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                debug!("error reading MSR registers: {e}");
+                warn!("could not read MSR registers, falling back to cpuinfo detection");
+                if !has_svm {
+                    debug!("CPU does not support AMD-V");
+                    Ok(VirtStatus::Disabled)
+                } else {
+                    debug!("svm flag present, assuming hardware supports it");
+                    Ok(VirtStatus::CanBeEnabled)
+                }
+            }
+        }
+    }
+
+    async fn read_msr(&self, msr: u32, cpuid: u32) -> Result<u64> {
+        let result = self
+            .host_executor
+            .spawn_in_host_ns(async move {
+                let msr_path = format!("/dev/cpu/{}/msr", cpuid);
+
+                // Check if MSR device exists
+                if !Path::new(&msr_path).exists() {
+                    bail!(format!(
+                        "Failed to read MSR 0x{:x}: /dev/cpu/0/msr doesn't exist, load 'msr' kernel module",
+                        msr
+                    ));
+                }
+
+                // Open and read from the MSR device file
+                let mut file = File::open(msr_path)?;
+                file.seek(SeekFrom::Start(msr as u64))?;
+
+                let mut buffer = [0u8; 8];
+                file.read_exact(&mut buffer)?;
+
+                // Convert little-endian bytes to u64
+                Ok(u64::from_le_bytes(buffer))
+            }).await??;
+
+        Ok(result)
+    }
+}
+
+// No-op for other archs
+// TODO(bml) arm64 PVH??
+#[cfg(not(target_arch = "x86_64"))]
+impl PVHChecks {
+    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
+        PVHChecks { host_executor }
+    }
+
+    pub async fn run_all(&self) -> CheckGroupResult {
+        CheckGroupResult::new(NAME)
+    }
+}
+
+#[async_trait]
+impl CheckGroup for PVHChecks {
+    fn id(&self) -> &str {
+        GROUP_IDENTIFIER
+    }
+
+    fn name(&self) -> &str {
+        NAME
+    }
+
+    fn description(&self) -> &str {
+        "PVH capability checks"
+    }
+
+    async fn run(&self) -> CheckGroupResult {
+        self.run_all().await
+    }
+}
+
+fn extract_cpu_vendor(cpuinfo: &str) -> String {
+    for line in cpuinfo.lines() {
+        if line.starts_with("vendor_id")
+            && let Some(value) = line.split(':').nth(1)
+        {
+            return value.trim().to_string();
+        }
+    }
+    String::from("Unknown")
+}
+
+fn extract_flags(cpuinfo: &str) -> String {
+    for line in cpuinfo.lines() {
+        if line.starts_with("flags")
+            && let Some(value) = line.split(':').nth(1)
+        {
+            return value.trim().to_string();
+        }
+    }
+    String::new()
+}

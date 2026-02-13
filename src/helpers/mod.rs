@@ -1,7 +1,7 @@
 pub mod host_executor;
 
 use async_trait::async_trait;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use std::fmt;
 
 /// CheckResultValue is the final value for the result of an individual check.
@@ -14,7 +14,7 @@ pub enum CheckResultValue {
     Passed,
     Failed(String),
     Errored(String),
-    Unknown,
+    Skipped,
 }
 
 impl fmt::Display for CheckResultValue {
@@ -23,7 +23,7 @@ impl fmt::Display for CheckResultValue {
             CheckResultValue::Passed => write!(f, "Passed"),
             CheckResultValue::Failed(msg) => write!(f, "Failed: {}", msg),
             CheckResultValue::Errored(msg) => write!(f, "Errored: {}", msg),
-            CheckResultValue::Unknown => write!(f, "Unknown"),
+            CheckResultValue::Skipped => write!(f, "Skipped"),
         }
     }
 }
@@ -75,10 +75,11 @@ pub struct CheckGroupResult {
 }
 
 impl CheckGroupResult {
+    #[allow(unused)]
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            result: CheckResultValue::Unknown,
+            result: CheckResultValue::Skipped,
             results: Vec::new(),
         }
     }
@@ -93,7 +94,7 @@ impl CheckGroupResult {
             CheckResultValue::Passed => info!("{}", s),
             CheckResultValue::Failed(_) => warn!("{}", s),
             CheckResultValue::Errored(_) => error!("{}", s),
-            CheckResultValue::Unknown => warn!("{}", s),
+            CheckResultValue::Skipped => debug!("{}", s),
         }
     }
 
@@ -109,7 +110,7 @@ impl CheckGroupResult {
                 CheckResultValue::Passed => info!("{}", s),
                 CheckResultValue::Failed(_) => warn!("{}", s),
                 CheckResultValue::Errored(_) => error!("{}", s),
-                CheckResultValue::Unknown => warn!("{}", s),
+                CheckResultValue::Skipped => debug!("{}", s),
             }
         }
     }

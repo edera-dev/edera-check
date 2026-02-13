@@ -14,7 +14,7 @@ use std::{fs, path::PathBuf, process::Command};
 const GROUP_IDENTIFIER: &str = "KernelChecks";
 const NAME: &str = "Kernel Checks";
 // TODO (bml) assemble actual list
-const REQUIRED_MODULES: &[&str] = &["nf_tables"];
+const REQUIRED_MODULES: &[&str] = &["nf_tables", "msr"];
 
 pub struct KernelChecks {
     host_executor: HostNamespaceExecutor,
@@ -104,8 +104,8 @@ impl KernelChecks {
     /// Looks at builtins for kernel_version and compares that to the list of
     /// required modules.
     /// Returns a vec of everything from required_modules that WAS NOT found in builtins.
-    async fn find_builtins(&self, required_modules: &Vec<String>) -> Result<Vec<String>> {
-        let mut modules_to_find: Vec<String> = required_modules.clone();
+    async fn find_builtins(&self, required_modules: &[String]) -> Result<Vec<String>> {
+        let mut modules_to_find: Vec<String> = required_modules.to_owned();
 
         // read host builtins
         let builtins = self
@@ -141,8 +141,8 @@ impl KernelChecks {
     /// Looks at loaded modules for the current host kernel and compares that to the list of
     /// required modules.
     /// Returns a vec of everything from required_modules that WAS NOT loaded.
-    async fn find_loaded(&self, required_modules: &Vec<String>) -> Result<Vec<String>> {
-        let mut modules_to_find: Vec<String> = required_modules.clone();
+    async fn find_loaded(&self, required_modules: &[String]) -> Result<Vec<String>> {
+        let mut modules_to_find: Vec<String> = required_modules.to_owned();
 
         let modules = self
             .host_executor

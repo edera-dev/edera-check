@@ -4,8 +4,8 @@ use crate::helpers::{
     host_executor::HostNamespaceExecutor,
 };
 
-use futures::{FutureExt, future::join_all};
 use async_trait::async_trait;
+use futures::{FutureExt, future::join_all};
 use log::debug;
 use sysinfo::{Disks, System};
 

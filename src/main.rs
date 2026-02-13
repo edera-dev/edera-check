@@ -2,7 +2,7 @@ mod checkers;
 mod helpers;
 mod recorders;
 
-use checkers::{kernel::KernelChecks, script::ScriptChecks, system::SystemChecks};
+use checkers::{kernel::KernelChecks, pvh::PVHChecks, system::SystemChecks};
 use helpers::{
     CheckGroup, CheckGroupResult,
     CheckResultValue::{Errored, Failed, Passed},
@@ -13,7 +13,7 @@ use recorders::system::SystemRecorder;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use flate2::{Compression, write::GzEncoder};
-use log::info;
+use log::{debug, info};
 use std::{
     env, fs,
     fs::File,
@@ -43,7 +43,7 @@ async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecut
 
     let targz_content = std::fs::read(&container_tarfile).expect("could not read tar");
 
-    info!("Read {} bytes of tar", targz_content.len());
+    debug!("Read {} bytes of tar", targz_content.len());
 
     let copy_to_host: JoinHandle<()> = host_executor.spawn_in_host_ns(async move {
         // Write tar.gz to host
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
 
     let groups: Vec<Box<dyn CheckGroup>> = vec![
         Box::new(SystemChecks::new(host_executor.clone())),
-        Box::new(ScriptChecks),
+        Box::new(PVHChecks::new(host_executor.clone())),
         Box::new(KernelChecks::new(host_executor.clone())),
         Box::new(SystemRecorder::new(host_executor.clone())),
     ];
