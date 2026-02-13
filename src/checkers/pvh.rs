@@ -6,7 +6,7 @@ use crate::helpers::{
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
-use log::{debug, warn, error};
+use log::{debug, error, warn};
 use std::{
     fs,
     fs::File,
@@ -197,9 +197,7 @@ impl PVHChecks {
                         Err(e) => {
                             debug!("Cannot read EFER: {}", e);
                             if has_svm {
-                                debug!(
-                                    "Hardware supports AMD-V, assuming it can be enabled"
-                                );
+                                debug!("Hardware supports AMD-V, assuming it can be enabled");
                                 Ok(VirtStatus::CanBeEnabled)
                             } else {
                                 debug!("Cannot determine if AMD-V can be used");
