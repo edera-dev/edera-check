@@ -68,6 +68,11 @@ async fn main() -> Result<()> {
             only_checks,
             report_dir,
         } => {
+            // If we are in a privileged container running in the host pid namespace,
+            // this creates a tokio thread pool that runs stuff outside of the container context,
+            // directly on the host.
+            // If we are in a regular old `sudo`'d binary running naked on the host,
+            // this is effectively a silent no-op.
             let host_executor = HostNamespaceExecutor::new();
 
             let mut groups: Vec<Box<dyn CheckGroup>> = vec![
