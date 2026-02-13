@@ -4,9 +4,9 @@ ENV TARGET_LIBC=musl TARGET_VENDOR=unknown DISABLE_CROSS_RS=1
 
 WORKDIR /usr/src/app
 COPY . .
-RUN ./hack/build/cargo.sh build --release --bin preflight
-RUN mv ./target/$(./hack/build/target.sh)/release/preflight /usr/sbin
+RUN ./hack/build/cargo.sh build --release --bin edera-check
+RUN mv ./target/$(./hack/build/target.sh)/release/edera-check /usr/sbin
 
 FROM cgr.dev/chainguard/wolfi-base:latest
-ENTRYPOINT ["/usr/sbin/preflight"]
-COPY --from=build /usr/sbin/preflight /usr/sbin/preflight
+ENTRYPOINT ["/usr/sbin/edera-check"]
+COPY --from=build /usr/sbin/edera-check /usr/sbin/edera-check

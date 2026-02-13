@@ -60,7 +60,7 @@ impl SystemRecorder {
 
     /// Runs the given command + args in host namespaces and captures the results.
     async fn run_tool(&self, tool: &str) -> CheckResult {
-        let name = format!("Record {tool}");
+        let name = format!("Captured {tool}");
         let mut tool_args: Vec<String> = tool.split(" ").map(|s| s.to_string()).collect();
         let cmd = tool_args.remove(0);
 
@@ -96,7 +96,7 @@ impl SystemRecorder {
                 if !local_file.exists() {
                     return None;
                 }
-                let name = format!("Record {}", local_file.display());
+                let name = format!("Captured {}", local_file.display());
 
                 let bytes = match tokio::fs::read(&local_file).await {
                     Ok(b) => b,

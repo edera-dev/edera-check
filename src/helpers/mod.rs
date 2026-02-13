@@ -1,8 +1,8 @@
 pub mod host_executor;
 
-use console::{style, Emoji};
 use async_trait::async_trait;
-use log::{debug, error, info, warn};
+use console::{Emoji, style};
+use log::{debug, error};
 use std::fmt;
 
 static CHECK: Emoji = Emoji("✅", "[+]");
@@ -97,9 +97,13 @@ impl CheckGroupResult {
         let s = format!("{}: {}", name, result);
         match result {
             CheckResultValue::Passed => println!("{} {}", CHECK, style(s).green().bold()),
-            CheckResultValue::Failed(_) => println!("{} {}",ERROR, style(s).bright().yellow().bold()),
-            CheckResultValue::Errored(_) => println!("{} {}",ERROR, style(s).red().bright().bold()),
-            CheckResultValue::Skipped => println!("{} {}",WARN, style(s).yellow().dim()),
+            CheckResultValue::Failed(_) => {
+                println!("{} {}", ERROR, style(s).bright().yellow().bold())
+            }
+            CheckResultValue::Errored(_) => {
+                println!("{} {}", ERROR, style(s).red().bright().bold())
+            }
+            CheckResultValue::Skipped => println!("{} {}", WARN, style(s).yellow().dim()),
         }
     }
 

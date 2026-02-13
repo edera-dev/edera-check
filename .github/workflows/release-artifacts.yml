@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       protect_ref:
-        description: 'Edera Protect commit/branch/tag'
+        description: 'Edera commit/branch/tag'
         default: ''
 
   # Nightly build from HEAD
@@ -57,14 +57,14 @@ jobs:
       run: |
         echo "Since GitHub doesn't have a way to filter for specific tags in the release event we need to implement this dumb check"
         run=true
-        if [[ '${{ github.event_name }}' == 'release' ]] && [[ '${{ github.ref_name }}' =~ 'protect-chart-*' ]]; then
+        if [[ '${{ github.event_name }}' == 'release' ]] && [[ '${{ github.ref_name }}' =~ 'chart-*' ]]; then
           run=false
         fi
         echo "Workflow should run: ${run}"
         echo "should_run=${run}" >> ${GITHUB_OUTPUT}
 
   oci:
-    name: 'Build and publish protect-${{ matrix.component }} images'
+    name: 'Build and publish ${{ matrix.component }} images'
     # Check if this is the proper release event.
     # TODO: remove this when actions has a better answer
     if: ${{ needs.release-gate.outputs.should_run == 'true' }}
@@ -74,7 +74,7 @@ jobs:
       fail-fast: false
       matrix:
         component:
-        - preflight
+        - edera-check
     permissions:
       contents: read
       id-token: write
@@ -92,14 +92,14 @@ jobs:
         submodules: recursive
         persist-credentials: false
 
-    - name: 'Build and sign protect-${{ matrix.component }} image'
+    - name: 'Build and sign ${{ matrix.component }} image'
       uses: edera-dev/actions/build-and-sign-image@v0.0.6
       with:
         component: '${{ matrix.component }}'
         event: '${{ github.event_name }}'
         repositories: |
-          ghcr.io/edera-dev/protect-${{ matrix.component }}
-          ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/staging/protect-${{ matrix.component }}
+          ghcr.io/edera-dev/${{ matrix.component }}
+          ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/staging/${{ matrix.component }}
         gcp_region: '${{ env.GCP_REGION }}'
         gcp_workload_identity_provider: '${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
         gcp_service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'

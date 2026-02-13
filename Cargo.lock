@@ -227,6 +227,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "edera-check"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
+ "console",
+ "env_logger",
+ "flate2",
+ "futures",
+ "log",
+ "nix",
+ "procfs",
+ "sysinfo",
+ "tar",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -631,28 +653,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a9db96d7fa8782dd8c15ce32ffe8680bbd1e978a43bf51a34d39483540495f5"
 dependencies = [
  "portable-atomic",
-]
-
-[[package]]
-name = "preflight"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "clap",
- "console",
- "env_logger",
- "flate2",
- "futures",
- "log",
- "nix",
- "procfs",
- "sysinfo",
- "tar",
- "tokio",
- "tokio-stream",
- "tokio-util",
 ]
 
 [[package]]

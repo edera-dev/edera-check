@@ -2,9 +2,9 @@ mod checkers;
 mod helpers;
 mod recorders;
 
-use console::{style, Emoji};
-use checkers::{kernel::KernelChecks, pvh::PVHChecks, system::SystemChecks, iommu::IOMMUChecks};
+use checkers::{iommu::IOMMUChecks, kernel::KernelChecks, pvh::PVHChecks, system::SystemChecks};
 use clap::{Parser, Subcommand};
+use console::{Emoji, style};
 use helpers::{
     CheckGroup, CheckGroupResult,
     CheckResultValue::{Errored, Failed, Passed},
@@ -15,20 +15,20 @@ use recorders::system::SystemRecorder;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use flate2::{Compression, write::GzEncoder};
-use log::{debug, info};
+use log::debug;
 use std::{
+    collections::HashSet,
     env, fs,
     fs::File,
     path::{Path, PathBuf},
-    collections::HashSet,
 };
 use tokio::task::JoinHandle;
 
 static SPARKLE: Emoji = Emoji("✨", "[*]");
 
 #[derive(Parser)]
-#[command(name = "preflight")]
-#[command(about = "Edera preinstall validation", long_about = None)]
+#[command(name = "edera-check")]
+#[command(about = "CLI to run checks before installing or using Edera", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -56,12 +56,6 @@ enum Commands {
     },
 }
 
-// Skip certain groups. List is separated by ;
-fn skip_groups() -> Vec<String> {
-    let skips = env::var("EDERA_PREFLIGHT_SKIP_GROUPS").unwrap_or_default();
-    skips.split(";").map(|s| s.to_string()).collect()
-}
-
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -69,7 +63,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Preinstall {
-            byo_kernel,
+            byo_kernel: _,
             record_hostinfo,
             only_checks,
             report_dir,
@@ -90,22 +84,19 @@ async fn main() -> Result<()> {
             // If only-checks is specified, only include checks that match the provided ID.
             if !only_checks.is_empty() {
                 let valid_ids: HashSet<_> = groups.iter().map(|g| g.id().to_string()).collect();
-                    only_checks.iter().for_each(|id| {
-                        if !valid_ids.contains(id) {
-                            println!("{} '{}'", style("Unknown Check:").yellow(), style(id).red());
-                        }
-                    });
+                only_checks.iter().for_each(|id| {
+                    if !valid_ids.contains(id) {
+                        println!("{} '{}'", style("Unknown Check:").yellow(), style(id).red());
+                    }
+                });
                 groups.retain(|group| only_checks.contains(&group.id().to_string()));
             }
 
             let mut final_result = Passed;
-            let skip_groups = skip_groups();
 
-
-            let hostname = host_executor.spawn_in_host_ns(async {
-                std::fs::read_to_string("/etc/hostname").unwrap()
-            }).await?;
-
+            let hostname = host_executor
+                .spawn_in_host_ns(async { std::fs::read_to_string("/etc/hostname").unwrap() })
+                .await?;
 
             let base_dir = if let Some(dir) = report_dir {
                 PathBuf::from(dir)
@@ -117,19 +108,19 @@ async fn main() -> Result<()> {
                 .map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
             // Run each check group
             for group in groups {
-                // Check if we need to explicity skip this group
-                if skip_groups.iter().any(|skip| group.id() == skip) {
-                    continue;
-                }
-
-                println!("{} {} - {}", style("Running Group").cyan(), style(group.name()).cyan().bold(), group.description());
+                println!(
+                    "{} {} - {}",
+                    style("Running Group").cyan(),
+                    style(group.name()).cyan().bold(),
+                    group.description()
+                );
 
                 let check_group_result = group.run().await;
 
                 check_group_result.log_group();
 
                 // if env::var("EDERA_PREFLIGHT_VERBOSE").unwrap_or_default() == "true" {
-                    check_group_result.log_individual_checks();
+                check_group_result.log_individual_checks();
                 // }
 
                 // Set final result to Failed if we failed and aren't already in an Errored state
@@ -183,7 +174,12 @@ async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecut
             .await
             .expect("could not write tar to host");
 
-        println!("{} {} Report saved: {}", SPARKLE, style("All Done!").green(), style(container_tarfile).cyan());
+        println!(
+            "{} {} Report saved: {}",
+            SPARKLE,
+            style("All Done!").green(),
+            style(container_tarfile).cyan()
+        );
     });
 
     Ok(copy_to_host.await?)
@@ -193,7 +189,7 @@ fn create_base_path(base_dir: PathBuf, hostname: &str) -> Result<PathBuf> {
     let now = Utc::now();
 
     let base_path = base_dir.join(format!(
-        "protect-preflight-report-{}-{}",
+        "edera-preinstall-report-{}-{}",
         hostname,
         now.format("%Y%m%d-%H%M%S")
     ));
