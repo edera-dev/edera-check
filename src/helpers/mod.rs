@@ -1,8 +1,13 @@
 pub mod host_executor;
 
+use console::{style, Emoji};
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
 use std::fmt;
+
+static CHECK: Emoji = Emoji("✅", "[+]");
+static WARN: Emoji = Emoji("⚠", "[!]");
+static ERROR: Emoji = Emoji("❌", "[X]");
 
 /// CheckResultValue is the final value for the result of an individual check.
 ///
@@ -89,26 +94,25 @@ impl CheckGroupResult {
     pub fn log_group(&self) {
         let name = &self.name;
         let result = &self.result;
-        let s = format!("[{}] {}", name, result);
+        let s = format!("{}: {}", name, result);
         match result {
-            CheckResultValue::Passed => info!("{}", s),
-            CheckResultValue::Failed(_) => warn!("{}", s),
-            CheckResultValue::Errored(_) => error!("{}", s),
-            CheckResultValue::Skipped => debug!("{}", s),
+            CheckResultValue::Passed => println!("{} {}", CHECK, style(s).green().bold()),
+            CheckResultValue::Failed(_) => println!("{} {}",ERROR, style(s).bright().yellow().bold()),
+            CheckResultValue::Errored(_) => println!("{} {}",ERROR, style(s).red().bright().bold()),
+            CheckResultValue::Skipped => println!("{} {}",WARN, style(s).yellow().dim()),
         }
     }
 
     /// log_individual_checks is a pretty-print helper to log the results of each individual check
     /// within a group.
     pub fn log_individual_checks(&self) {
-        let group_name = &self.name;
         for check_result in self.results.iter() {
             let name = &check_result.name;
             let result = &check_result.result;
-            let s = format!("[{}] {}: {}", group_name, name, result);
+            let s = format!("    • {}: {}", name, result);
             match result {
-                CheckResultValue::Passed => info!("{}", s),
-                CheckResultValue::Failed(_) => warn!("{}", s),
+                CheckResultValue::Passed => println!("{}", style(s).magenta().dim()),
+                CheckResultValue::Failed(_) => println!("{}", s),
                 CheckResultValue::Errored(_) => error!("{}", s),
                 CheckResultValue::Skipped => debug!("{}", s),
             }

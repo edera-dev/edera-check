@@ -11,7 +11,7 @@ use log::debug;
 use procfs::{Current, sys::kernel};
 use std::{fs, path::PathBuf, process::Command};
 
-const GROUP_IDENTIFIER: &str = "KernelChecks";
+const GROUP_IDENTIFIER: &str = "kernel";
 const NAME: &str = "Kernel Checks";
 // TODO (bml) assemble actual list
 const REQUIRED_MODULES: &[&str] = &["nf_tables", "msr"];

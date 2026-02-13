@@ -9,7 +9,7 @@ use futures::{FutureExt, future::join_all};
 use log::debug;
 use sysinfo::{Disks, System};
 
-const GROUP_IDENTIFIER: &str = "SystemChecks";
+const GROUP_IDENTIFIER: &str = "system";
 const NAME: &str = "System Checks";
 const MINIMUM_MEMORY: u64 = 4 * 1024 * 1024 * 1024; // 4GB
 const MINIMUM_DISK: u64 = 20 * 1024 * 1024 * 1024; // 20GB

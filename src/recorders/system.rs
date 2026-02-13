@@ -14,7 +14,7 @@ use crate::helpers::{
     host_executor::HostNamespaceExecutor,
 };
 
-const GROUP_IDENTIFIER: &str = "SystemRecorder";
+const GROUP_IDENTIFIER: &str = "sysinfo";
 const NAME: &str = "System Info Recorder";
 
 pub struct SystemRecorder {
@@ -214,7 +214,7 @@ impl CheckGroup for SystemRecorder {
     }
 
     fn description(&self) -> &str {
-        "System requirement and status checks - records for informational purposes"
+        "Record system information for reporting purposes"
     }
 
     async fn run(&self) -> CheckGroupResult {
