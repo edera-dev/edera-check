@@ -21,6 +21,8 @@ use std::{
 };
 use tokio::task::JoinHandle;
 
+use crate::checkers::iommu::IOMMUChecks;
+
 // Skip certain groups. List is separated by ;
 fn skip_groups() -> Vec<String> {
     let skips = env::var("EDERA_PREFLIGHT_SKIP_GROUPS").unwrap_or_default();
@@ -110,6 +112,7 @@ async fn main() -> Result<()> {
     let groups: Vec<Box<dyn CheckGroup>> = vec![
         Box::new(SystemChecks::new(host_executor.clone())),
         Box::new(PVHChecks::new(host_executor.clone())),
+        Box::new(IOMMUChecks::new(host_executor.clone())),
         Box::new(KernelChecks::new(host_executor.clone())),
         Box::new(SystemRecorder::new(host_executor.clone())),
     ];

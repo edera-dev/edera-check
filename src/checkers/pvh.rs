@@ -6,7 +6,7 @@ use crate::helpers::{
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
-use log::{debug, warn};
+use log::{debug, error, warn};
 use std::{
     fs,
     fs::File,
@@ -87,7 +87,7 @@ impl PVHChecks {
                 )
             }
             Err(e) => {
-                eprintln!("Error: {}", e);
+                error!("Error: {}", e);
                 CheckResult::new(&name, Errored(e.to_string()))
             }
         }
@@ -106,7 +106,7 @@ impl PVHChecks {
             "GenuineIntel" => self.check_intel(&flags).await,
             "AuthenticAMD" => self.check_amd(&flags).await,
             _ => {
-                eprintln!("Unknown CPU vendor: {}", cpu_vendor);
+                error!("Unknown CPU vendor: {}", cpu_vendor);
                 Ok(VirtStatus::Disabled)
             }
         }
@@ -195,14 +195,12 @@ impl PVHChecks {
                             }
                         }
                         Err(e) => {
-                            eprintln!("WARN: Cannot read EFER: {}", e);
+                            debug!("Cannot read EFER: {}", e);
                             if has_svm {
-                                eprintln!(
-                                    "      Hardware supports AMD-V, assuming it can be enabled"
-                                );
+                                debug!("Hardware supports AMD-V, assuming it can be enabled");
                                 Ok(VirtStatus::CanBeEnabled)
                             } else {
-                                eprintln!("      Cannot determine if AMD-V can be used");
+                                debug!("Cannot determine if AMD-V can be used");
                                 Ok(VirtStatus::Disabled)
                             }
                         }

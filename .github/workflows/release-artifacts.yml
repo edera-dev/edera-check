@@ -93,7 +93,7 @@ jobs:
         persist-credentials: false
 
     - name: 'Build and sign protect-${{ matrix.component }} image'
-      uses: edera-dev/actions/build-and-sign-image@v0.0.3
+      uses: edera-dev/actions/build-and-sign-image@v0.0.6
       with:
         component: '${{ matrix.component }}'
         event: '${{ github.event_name }}'
