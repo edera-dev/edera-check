@@ -1,6 +1,6 @@
 use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
-    CheckResultValue::{Errored, Failed, Passed, Skipped},
+    CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
 use anyhow::{Result, bail};
@@ -15,7 +15,7 @@ use std::{
     process::Command,
 };
 
-const GROUP_IDENTIFIER: &str = "PVHChecks";
+const GROUP_IDENTIFIER: &str = "pvh";
 const NAME: &str = "PVH Checks";
 
 #[derive(Debug, PartialEq)]
@@ -40,7 +40,7 @@ impl PVHChecks {
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([self.check_virtualization().boxed()]).await;
 
-        let mut group_result = Skipped;
+        let mut group_result = Passed;
         for res in results.iter() {
             // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {

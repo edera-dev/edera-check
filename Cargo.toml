@@ -1,8 +1,8 @@
 [package]
-name = "preflight"
-version = "0.1.0"
+name = "edera-check"
+version = "0.2.0"
 edition = "2024"
-description = "CLI to run pre-deployment checks before running workloads."
+description = "CLI to run checks before installing or using Edera"
 
 [dependencies]
 anyhow = "1.0.99"
@@ -19,3 +19,5 @@ tokio-stream = { version = "0.1", features = ["io-util", "net"] }
 nix = { version= "0.31", features = ["sched"] }
 futures = "0.3"
 async-trait = "0.1"
+clap = { version = "4.5", features = ["derive"] }
+console = "0.16"

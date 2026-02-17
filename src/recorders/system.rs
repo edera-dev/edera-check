@@ -14,7 +14,7 @@ use crate::helpers::{
     host_executor::HostNamespaceExecutor,
 };
 
-const GROUP_IDENTIFIER: &str = "SystemRecorder";
+const GROUP_IDENTIFIER: &str = "sysinfo";
 const NAME: &str = "System Info Recorder";
 
 pub struct SystemRecorder {
@@ -60,7 +60,7 @@ impl SystemRecorder {
 
     /// Runs the given command + args in host namespaces and captures the results.
     async fn run_tool(&self, tool: &str) -> CheckResult {
-        let name = format!("Record {tool}");
+        let name = format!("Captured {tool}");
         let mut tool_args: Vec<String> = tool.split(" ").map(|s| s.to_string()).collect();
         let cmd = tool_args.remove(0);
 
@@ -96,7 +96,7 @@ impl SystemRecorder {
                 if !local_file.exists() {
                     return None;
                 }
-                let name = format!("Record {}", local_file.display());
+                let name = format!("Captured {}", local_file.display());
 
                 let bytes = match tokio::fs::read(&local_file).await {
                     Ok(b) => b,
@@ -214,7 +214,7 @@ impl CheckGroup for SystemRecorder {
     }
 
     fn description(&self) -> &str {
-        "System requirement and status checks - records for informational purposes"
+        "Record system information for reporting purposes"
     }
 
     async fn run(&self) -> CheckGroupResult {

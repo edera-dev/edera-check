@@ -1,6 +1,6 @@
 use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
-    CheckResultValue::{Errored, Failed, Passed, Skipped},
+    CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
 use async_trait::async_trait;
@@ -8,7 +8,7 @@ use futures::{FutureExt, future::join_all};
 use log::debug;
 use std::path::Path;
 
-const GROUP_IDENTIFIER: &str = "IOMMUChecks";
+const GROUP_IDENTIFIER: &str = "iommu";
 const NAME: &str = "IOMMU Checks";
 
 pub struct IOMMUChecks {
@@ -26,7 +26,7 @@ impl IOMMUChecks {
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([self.check_iommu().boxed()]).await;
 
-        let mut group_result = Skipped;
+        let mut group_result = Passed;
         for res in results.iter() {
             // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {
