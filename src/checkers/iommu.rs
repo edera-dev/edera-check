@@ -1,7 +1,5 @@
 use crate::helpers::{
-    CheckGroup, CheckGroupResult, CheckResult,
-    CheckResultValue::{Errored, Failed, Passed},
-    host_executor::HostNamespaceExecutor,
+    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult, CheckResultValue::{Errored, Failed, Passed}, host_executor::HostNamespaceExecutor
 };
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
@@ -102,5 +100,9 @@ impl CheckGroup for IOMMUChecks {
 
     async fn run(&self) -> CheckGroupResult {
         self.run_all().await
+    }
+
+    fn category(&self) -> CheckGroupCategory {
+        CheckGroupCategory::Optional("PVH and some host device support not available on this system".into())
     }
 }

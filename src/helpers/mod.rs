@@ -19,7 +19,7 @@ pub enum CheckResultValue {
     Passed,
     Failed(String),
     Errored(String),
-    Skipped,
+    Skipped(String),
 }
 
 impl fmt::Display for CheckResultValue {
@@ -28,7 +28,24 @@ impl fmt::Display for CheckResultValue {
             CheckResultValue::Passed => write!(f, "Passed"),
             CheckResultValue::Failed(msg) => write!(f, "Failed: {}", msg),
             CheckResultValue::Errored(msg) => write!(f, "Errored: {}", msg),
-            CheckResultValue::Skipped => write!(f, "Skipped"),
+            CheckResultValue::Skipped(msg) => write!(f, "Skipped: {}", msg),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CheckGroupCategory {
+    Required,
+    Optional(String),
+    Advisory,
+}
+
+impl fmt::Display for CheckGroupCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CheckGroupCategory::Required => write!(f, "Required"),
+            CheckGroupCategory::Advisory => write!(f, "Advisory"),
+            CheckGroupCategory::Optional(s) => write!(f, "Optional"),
         }
     }
 }
@@ -80,30 +97,29 @@ pub struct CheckGroupResult {
 }
 
 impl CheckGroupResult {
-    #[allow(unused)]
-    pub fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            result: CheckResultValue::Skipped,
-            results: Vec::new(),
-        }
-    }
-
     /// log_group is a pretty-print helper to log the result of the group based on what the result
     /// value is.
-    pub fn log_group(&self) {
+    pub fn log_group(&self, category: CheckGroupCategory) {
         let name = &self.name;
         let result = &self.result;
         let s = format!("{}: {}", name, result);
         match result {
             CheckResultValue::Passed => println!("{} {}", CHECK, style(s).green().bold()),
             CheckResultValue::Failed(_) => {
-                println!("{} {}", ERROR, style(s).bright().yellow().bold())
+                if let CheckGroupCategory::Optional(opt) = &category {
+                    println!("{} [{}]\n{} [{}]", WARN, style(s).yellow().dim(), WARN, style(opt).yellow().dim())
+                } else {
+                    println!("{} {}", ERROR, style(s).bright().yellow().bold())
+                }
             }
             CheckResultValue::Errored(_) => {
-                println!("{} {}", ERROR, style(s).red().bright().bold())
+                if let CheckGroupCategory::Optional(opt) = &category {
+                    println!("{} [{}]\n{} [{}]", WARN, style(s).yellow().dim(), WARN, style(opt).yellow().dim())
+                } else {
+                    println!("{} {}", ERROR, style(s).red().bright().bold())
+                }
             }
-            CheckResultValue::Skipped => println!("{} {}", WARN, style(s).yellow().dim()),
+            CheckResultValue::Skipped(reason) => println!("{} {} - {}", WARN, style(s).yellow().dim(), style(reason).yellow().dim()),
         }
     }
 
@@ -116,9 +132,9 @@ impl CheckGroupResult {
             let s = format!("    • {}: {}", name, result);
             match result {
                 CheckResultValue::Passed => println!("{}", style(s).magenta().dim()),
-                CheckResultValue::Failed(_) => println!("{}", s),
-                CheckResultValue::Errored(_) => error!("{}", s),
-                CheckResultValue::Skipped => debug!("{}", s),
+                CheckResultValue::Failed(_) => println!("{}", style(s).red().dim()),
+                CheckResultValue::Errored(_) => println!("{}", style(s).red().dim()),
+                CheckResultValue::Skipped(_) => println!("{}", style(s).yellow().dim()),
             }
         }
     }
@@ -139,4 +155,8 @@ pub trait CheckGroup {
 
     /// run is the main entry point that runs the checks within the check group.
     async fn run(&self) -> CheckGroupResult;
+
+    /// category indicates whether this check group's pass/fail state
+    /// is a blocker, simply means some optional feature is unavailable, or otherwise.
+    fn category(&self) -> CheckGroupCategory;
 }

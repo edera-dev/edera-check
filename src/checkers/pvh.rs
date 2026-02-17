@@ -2,6 +2,7 @@ use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
+    CheckGroupCategory,
 };
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -279,6 +280,10 @@ impl CheckGroup for PVHChecks {
 
     async fn run(&self) -> CheckGroupResult {
         self.run_all().await
+    }
+
+    fn category(&self) -> CheckGroupCategory {
+        CheckGroupCategory::Optional("PVH feature not available on this system".into())
     }
 }
 

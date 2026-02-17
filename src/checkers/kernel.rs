@@ -2,6 +2,7 @@ use crate::helpers::{
     CheckGroup, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
+    CheckGroupCategory,
 };
 
 use anyhow::{Result, bail};
@@ -180,5 +181,9 @@ impl CheckGroup for KernelChecks {
 
     async fn run(&self) -> CheckGroupResult {
         self.run_all().await
+    }
+
+    fn category(&self) -> CheckGroupCategory {
+        CheckGroupCategory::Required
     }
 }

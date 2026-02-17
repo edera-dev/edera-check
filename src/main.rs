@@ -21,6 +21,7 @@ use std::{
     env, fs,
     fs::File,
     path::{Path, PathBuf},
+    process,
 };
 use tokio::task::JoinHandle;
 
@@ -75,6 +76,28 @@ async fn main() -> Result<()> {
             // this is effectively a silent no-op.
             let host_executor = HostNamespaceExecutor::new();
 
+            // See if we are already booted under Edera. If so, error out and suggest `postinstall`
+            // as the command to run.
+            match host_executor
+            .spawn_in_host_ns(async {
+                if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
+                    return false;
+                }
+                let xen = Path::new("/sys/hypervisor/type");
+                xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
+            })
+            .await
+            {
+                Ok(true) => {
+                    println!("{}", style("Edera is already installed, try `postinstall` command").red().bold());
+                    process::exit(1);
+                },
+                Ok(false) => (),
+                Err(e) => {
+                    bail!("Error: {}", e);
+                }
+            };
+
             let mut groups: Vec<Box<dyn CheckGroup>> = vec![
                 Box::new(SystemChecks::new(host_executor.clone())),
                 Box::new(PVHChecks::new(host_executor.clone())),
@@ -97,6 +120,8 @@ async fn main() -> Result<()> {
                 groups.retain(|group| only_checks.contains(&group.id().to_string()));
             }
 
+            groups.sort_by_key(|g| g.category());
+
             let mut final_result = Passed;
 
             let hostname = host_executor
@@ -114,19 +139,18 @@ async fn main() -> Result<()> {
             // Run each check group
             for group in groups {
                 println!(
-                    "{} {} - {}",
+                    "{} {} [{}] - {}",
                     style("Running Group").cyan(),
                     style(group.name()).cyan().bold(),
+                    style(group.category()).white().bold(),
                     group.description()
                 );
 
                 let check_group_result = group.run().await;
 
-                check_group_result.log_group();
-
-                // if env::var("EDERA_PREFLIGHT_VERBOSE").unwrap_or_default() == "true" {
                 check_group_result.log_individual_checks();
-                // }
+
+                check_group_result.log_group(group.category());
 
                 // Set final result to Failed if we failed and aren't already in an Errored state
                 if !matches!(final_result, Errored(_))
