@@ -88,8 +88,11 @@ async fn main() -> Result<()> {
             })
             .await
             {
+                // TODO(bml) later we may add a `postinstall` command,
+                // but for now all we have is `preinstall` and running it under an active Edera boot
+                // is not supported or useful.
                 Ok(true) => {
-                    println!("{}", style("Edera is already installed, try `postinstall` command").red().bold());
+                    println!("{}", style("Edera is already installed").red().bold());
                     process::exit(1);
                 },
                 Ok(false) => (),
