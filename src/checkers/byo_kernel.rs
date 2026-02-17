@@ -230,7 +230,7 @@ impl CheckGroup for BYOKernelChecks {
     }
 
     fn description(&self) -> &str {
-        "Kernel requirement checks"
+        "Bring Your Own Kernel requirement checks"
     }
 
     async fn run(&self) -> CheckGroupResult {

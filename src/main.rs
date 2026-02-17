@@ -3,8 +3,8 @@ mod helpers;
 mod recorders;
 
 use checkers::{
-    byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, pvh::PVHChecks,
-    system::SystemChecks,
+    byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, numa::NUMAChecks,
+    pvh::PVHChecks, system::SystemChecks,
 };
 use clap::{Parser, Subcommand};
 use console::{Emoji, style};
@@ -110,6 +110,7 @@ async fn main() -> Result<()> {
                 Box::new(PVHChecks::new(host_executor.clone())),
                 Box::new(KernelChecks::new(host_executor.clone())),
                 Box::new(IOMMUChecks::new(host_executor.clone())),
+                Box::new(NUMAChecks::new(host_executor.clone())),
             ];
 
             if record_hostinfo {
