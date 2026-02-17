@@ -9,10 +9,9 @@ use std::{
 };
 
 use crate::helpers::{
-    CheckGroup, CheckGroupResult, CheckResult,
+    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed, Skipped},
     host_executor::HostNamespaceExecutor,
-    CheckGroupCategory,
 };
 
 const GROUP_IDENTIFIER: &str = "sysinfo";
@@ -182,7 +181,10 @@ impl SystemRecorder {
                 return result;
             }
         }
-        CheckResult::new(name, Skipped(format!("no kernel config found in {:?}", files)))
+        CheckResult::new(
+            name,
+            Skipped(format!("no kernel config found in {:?}", files)),
+        )
     }
 
     async fn current_kernel_version(&self) -> Result<String> {

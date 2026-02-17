@@ -1,5 +1,7 @@
 use crate::helpers::{
-    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult, CheckResultValue::{Errored, Failed, Passed}, host_executor::HostNamespaceExecutor
+    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
+    CheckResultValue::{Errored, Failed, Passed},
+    host_executor::HostNamespaceExecutor,
 };
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
@@ -28,7 +30,7 @@ impl IOMMUChecks {
         for res in results.iter() {
             // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {
-                group_result = Failed(String::from("group failed"));
+                group_result = Failed(String::from("group errored"));
             }
 
             if matches!(res.result, Errored(_)) {
@@ -103,6 +105,8 @@ impl CheckGroup for IOMMUChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Optional("PVH and some host device support not available on this system".into())
+        CheckGroupCategory::Optional(
+            "PVH and some host device support not available on this system".into(),
+        )
     }
 }

@@ -1,8 +1,7 @@
 use crate::helpers::{
-    CheckGroup, CheckGroupResult, CheckResult,
+    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
-    CheckGroupCategory,
 };
 
 use async_trait::async_trait;

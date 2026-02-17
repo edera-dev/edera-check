@@ -11,22 +11,32 @@ use log::debug;
 use procfs::{Current, sys::kernel};
 use std::{fs, path::PathBuf, process::Command};
 
-const GROUP_IDENTIFIER: &str = "kernel";
-const NAME: &str = "Kernel Checks";
-// TODO (bml) assemble actual list
-const REQUIRED_MODULES: &[&str] = &["nf_tables", "msr"];
+const GROUP_IDENTIFIER: &str = "byokernel";
+const NAME: &str = "Bring-Your-Own Kernel Checks";
+// Modules that the currently running kernel must have as loaded/builtin/loadable
+// in order for it to be usable as a BYO kernel
+const REQUIRED_MODULES: &[&str] = &[
+    "nf_tables",
+    "xen_evtchn",
+    "xen-privcmd",
+    "xen-netback",
+    "xen-pciback",
+    "xen-blkback",
+    "xen-gntdev",
+    "xen-gntalloc",
+];
 
 const KVER_FLOOR_PATCH: u16 = 0;
 const KVER_FLOOR_MINOR: u8 = 15;
 const KVER_FLOOR_MAJOR: u8 = 5;
 
-pub struct KernelChecks {
+pub struct BYOKernelChecks {
     host_executor: HostNamespaceExecutor,
 }
 
-impl KernelChecks {
+impl BYOKernelChecks {
     pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        KernelChecks { host_executor }
+        BYOKernelChecks { host_executor }
     }
 
     /// Run all the checkers asynchronously, then
@@ -38,11 +48,11 @@ impl KernelChecks {
         for res in results.iter() {
             // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {
-                group_result = Failed(String::from("group failed"));
+                group_result = Failed("".into());
             }
 
             if matches!(res.result, Errored(_)) {
-                group_result = Errored(String::from("group errored"));
+                group_result = Errored("".into());
             }
         }
 
@@ -93,6 +103,14 @@ impl KernelChecks {
 
         // Search loaded modules
         let remaining = match self.find_loaded(&remaining).await {
+            Ok(r) => r,
+            Err(e) => {
+                return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
+            }
+        };
+
+        // Search loadable modules
+        let remaining = match self.find_loadable(&remaining).await {
             Ok(r) => r,
             Err(e) => {
                 return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
@@ -166,10 +184,43 @@ impl KernelChecks {
 
         Ok(modules_to_find)
     }
+
+    /// Looks at not-loaded-but-loadable modules for the current host kernel and compares
+    /// that to the list of required modules.
+    /// Returns a vec of everything from required_modules that is available to load (exists in
+    /// modules.dep) but is NOT currently loaded or builtin.
+    async fn find_loadable(&self, required_modules: &[String]) -> Result<Vec<String>> {
+        let mut modules_to_find: Vec<String> = required_modules.to_owned();
+        let dep_file = self
+            .host_executor
+            .spawn_in_host_ns(async move {
+                let output = Command::new("uname").arg("-r").output()?;
+                if !output.status.success() {
+                    let error_message = String::from_utf8_lossy(&output.stderr);
+                    bail!("{}", error_message);
+                }
+                let kernel_version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let path = PathBuf::from(format!("/lib/modules/{kernel_version}/modules.dep"));
+                fs::read_to_string(path).map_err(|e| anyhow::anyhow!(e))
+            })
+            .await??;
+
+        for line in dep_file.lines() {
+            let module_path = line.split(':').next().unwrap_or("");
+            let found = modules_to_find
+                .iter()
+                .position(|required| module_path.contains(required.as_str()));
+            if let Some(index) = found {
+                debug!("available {}", modules_to_find[index]);
+                modules_to_find.remove(index);
+            }
+        }
+        Ok(modules_to_find)
+    }
 }
 
 #[async_trait]
-impl CheckGroup for KernelChecks {
+impl CheckGroup for BYOKernelChecks {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
     }
@@ -187,6 +238,8 @@ impl CheckGroup for KernelChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Required
+        CheckGroupCategory::Optional(
+            "Active kernel not sufficient for Bring-Your-Own-Kernel support".into(),
+        )
     }
 }

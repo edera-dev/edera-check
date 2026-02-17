@@ -2,7 +2,6 @@ pub mod host_executor;
 
 use async_trait::async_trait;
 use console::{Emoji, style};
-use log::{debug, error};
 use std::fmt;
 
 static CHECK: Emoji = Emoji("✅", "[+]");
@@ -26,9 +25,12 @@ impl fmt::Display for CheckResultValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             CheckResultValue::Passed => write!(f, "Passed"),
-            CheckResultValue::Failed(msg) => write!(f, "Failed: {}", msg),
-            CheckResultValue::Errored(msg) => write!(f, "Errored: {}", msg),
-            CheckResultValue::Skipped(msg) => write!(f, "Skipped: {}", msg),
+            CheckResultValue::Failed(msg) if msg.is_empty() => write!(f, "Failed"),
+            CheckResultValue::Failed(msg) => write!(f, "Failed: {msg}"),
+            CheckResultValue::Errored(msg) if msg.is_empty() => write!(f, "Errored"),
+            CheckResultValue::Errored(msg) => write!(f, "Errored: {msg}"),
+            CheckResultValue::Skipped(msg) if msg.is_empty() => write!(f, "Skipped"),
+            CheckResultValue::Skipped(msg) => write!(f, "Skipped: {msg}"),
         }
     }
 }
@@ -45,7 +47,7 @@ impl fmt::Display for CheckGroupCategory {
         match self {
             CheckGroupCategory::Required => write!(f, "Required"),
             CheckGroupCategory::Advisory => write!(f, "Advisory"),
-            CheckGroupCategory::Optional(s) => write!(f, "Optional"),
+            CheckGroupCategory::Optional(_) => write!(f, "Optional"),
         }
     }
 }
@@ -107,19 +109,36 @@ impl CheckGroupResult {
             CheckResultValue::Passed => println!("{} {}", CHECK, style(s).green().bold()),
             CheckResultValue::Failed(_) => {
                 if let CheckGroupCategory::Optional(opt) = &category {
-                    println!("{} [{}]\n{} [{}]", WARN, style(s).yellow().dim(), WARN, style(opt).yellow().dim())
+                    println!(
+                        "{} {}\n{} {} [Optional]",
+                        WARN,
+                        style(opt).yellow().dim(),
+                        WARN,
+                        style(s).yellow().dim()
+                    )
                 } else {
                     println!("{} {}", ERROR, style(s).bright().yellow().bold())
                 }
             }
             CheckResultValue::Errored(_) => {
                 if let CheckGroupCategory::Optional(opt) = &category {
-                    println!("{} [{}]\n{} [{}]", WARN, style(s).yellow().dim(), WARN, style(opt).yellow().dim())
+                    println!(
+                        "{} {}\n{} {} [Optional]",
+                        WARN,
+                        style(opt).yellow().dim(),
+                        WARN,
+                        style(s).yellow().dim()
+                    )
                 } else {
                     println!("{} {}", ERROR, style(s).red().bright().bold())
                 }
             }
-            CheckResultValue::Skipped(reason) => println!("{} {} - {}", WARN, style(s).yellow().dim(), style(reason).yellow().dim()),
+            CheckResultValue::Skipped(reason) => println!(
+                "{} {} - {}",
+                WARN,
+                style(s).yellow().dim(),
+                style(reason).yellow().dim()
+            ),
         }
     }
 

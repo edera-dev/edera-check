@@ -2,7 +2,10 @@ mod checkers;
 mod helpers;
 mod recorders;
 
-use checkers::{iommu::IOMMUChecks, kernel::KernelChecks, pvh::PVHChecks, system::SystemChecks};
+use checkers::{
+    byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, pvh::PVHChecks,
+    system::SystemChecks,
+};
 use clap::{Parser, Subcommand};
 use console::{Emoji, style};
 use helpers::{
@@ -47,7 +50,8 @@ enum Commands {
         #[arg(short, long, default_value_t = true)]
         record_hostinfo: bool,
 
-        /// Run only selected checks, instead of default behavior of running all
+        /// Run only selected checks, instead of default behavior of running all.
+        /// Will override all other check enablement flags.
         #[arg(short, long, value_delimiter = ',')]
         only_checks: Vec<String>,
 
@@ -64,7 +68,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Preinstall {
-            byo_kernel: _,
+            byo_kernel,
             record_hostinfo,
             only_checks,
             report_dir,
@@ -79,14 +83,14 @@ async fn main() -> Result<()> {
             // See if we are already booted under Edera. If so, error out and suggest `postinstall`
             // as the command to run.
             match host_executor
-            .spawn_in_host_ns(async {
-                if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
-                    return false;
-                }
-                let xen = Path::new("/sys/hypervisor/type");
-                xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
-            })
-            .await
+                .spawn_in_host_ns(async {
+                    if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
+                        return false;
+                    }
+                    let xen = Path::new("/sys/hypervisor/type");
+                    xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
+                })
+                .await
             {
                 // TODO(bml) later we may add a `postinstall` command,
                 // but for now all we have is `preinstall` and running it under an active Edera boot
@@ -94,7 +98,7 @@ async fn main() -> Result<()> {
                 Ok(true) => {
                     println!("{}", style("Edera is already installed").red().bold());
                     process::exit(1);
-                },
+                }
                 Ok(false) => (),
                 Err(e) => {
                     bail!("Error: {}", e);
@@ -110,6 +114,10 @@ async fn main() -> Result<()> {
 
             if record_hostinfo {
                 groups.push(Box::new(SystemRecorder::new(host_executor.clone())));
+            }
+
+            if byo_kernel {
+                groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));
             }
 
             // If only-checks is specified, only include checks that match the provided ID.
