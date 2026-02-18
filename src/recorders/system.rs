@@ -9,8 +9,8 @@ use std::{
 };
 
 use crate::helpers::{
-    CheckGroup, CheckGroupResult, CheckResult,
-    CheckResultValue::{Errored, Failed, Passed},
+    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
+    CheckResultValue::{Errored, Failed, Passed, Skipped},
     host_executor::HostNamespaceExecutor,
 };
 
@@ -70,17 +70,17 @@ impl SystemRecorder {
             .await
         {
             Ok(output) => output,
-            Err(e) => return CheckResult::new(&name, Errored(e.to_string())),
+            Err(e) => return CheckResult::new(&name, Skipped(e.to_string())),
         };
 
         let output = match output {
             Ok(output) => output,
-            Err(e) => return CheckResult::new(&name, Errored(e.to_string())),
+            Err(e) => return CheckResult::new(&name, Skipped(e.to_string())),
         };
 
         if !output.status.success() {
             let error_message = String::from_utf8_lossy(&output.stderr);
-            return CheckResult::new(&name, Errored(error_message.to_string()));
+            return CheckResult::new(&name, Skipped(error_message.to_string()));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -162,7 +162,7 @@ impl SystemRecorder {
         }
         CheckResult::new(
             "Record grub config",
-            Errored(format!("failed to find any {:?}", files)),
+            Skipped(format!("no grub config found in {:?}", files)),
         )
     }
 
@@ -181,7 +181,10 @@ impl SystemRecorder {
                 return result;
             }
         }
-        CheckResult::new(name, Errored(format!("failed to find any {:?}", files)))
+        CheckResult::new(
+            name,
+            Skipped(format!("no kernel config found in {:?}", files)),
+        )
     }
 
     async fn current_kernel_version(&self) -> Result<String> {
@@ -219,5 +222,9 @@ impl CheckGroup for SystemRecorder {
 
     async fn run(&self) -> CheckGroupResult {
         self.run_all().await
+    }
+
+    fn category(&self) -> CheckGroupCategory {
+        CheckGroupCategory::Advisory
     }
 }

@@ -6,25 +6,24 @@ use crate::helpers::{
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
 use log::debug;
-use std::path::Path;
 
-const GROUP_IDENTIFIER: &str = "iommu";
-const NAME: &str = "IOMMU Checks";
+const GROUP_IDENTIFIER: &str = "numa";
+const NAME: &str = "NUMA Checks";
 
-pub struct IOMMUChecks {
+pub struct NUMAChecks {
     host_executor: HostNamespaceExecutor,
 }
 
 #[cfg(target_arch = "x86_64")]
-impl IOMMUChecks {
+impl NUMAChecks {
     pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        IOMMUChecks { host_executor }
+        NUMAChecks { host_executor }
     }
 
     /// Run all the checkers asynchronously, then
     /// join and collect the results.
     pub async fn run_all(&self) -> CheckGroupResult {
-        let results = join_all([self.check_iommu().boxed()]).await;
+        let results = join_all([self.check_numa().boxed()]).await;
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -45,26 +44,33 @@ impl IOMMUChecks {
         }
     }
 
-    async fn check_iommu(&self) -> CheckResult {
+    async fn check_numa(&self) -> CheckResult {
         let name = String::from("IOMMU Support");
 
         match self
             .host_executor
             .spawn_in_host_ns(async {
-                if Path::new("/sys/firmware/acpi/tables/DMAR").exists() {
-                    debug!("Found Intel IOMMU");
-                    true
-                } else if Path::new("/sys/firmware/acpi/tables/IVRS").exists() {
-                    debug!("Found AMD IOMMU");
-                    true
-                } else {
-                    false
-                }
+                std::fs::read_dir("/sys/devices/system/node")
+                    .unwrap()
+                    .filter_map(|e| e.ok())
+                    .filter(|e| {
+                        let name = e.file_name();
+                        let s = name.to_string_lossy();
+                        s.strip_prefix("node")
+                            .map(|rest| rest.chars().all(|c| c.is_ascii_digit()))
+                            .unwrap_or(false)
+                    })
+                    .count()
             })
             .await
         {
-            Ok(true) => CheckResult::new(&name, Passed),
-            Ok(false) => CheckResult::new(&name, Failed("no IOMMU detected".to_string())),
+            Ok(count) => {
+                if count <= 1 {
+                    CheckResult::new(&name, Passed)
+                } else {
+                    CheckResult::new(&name, Failed(format!("{} NUMA nodes detected", count)))
+                }
+            }
             Err(e) => {
                 debug!("Error: {}", e);
                 CheckResult::new(&name, Errored(e.to_string()))
@@ -74,11 +80,11 @@ impl IOMMUChecks {
 }
 
 // No-op for other archs
-// TODO(bml) arm64 IOMMU??
+// TODO(bml) arm64 NUMA??
 #[cfg(not(target_arch = "x86_64"))]
-impl IOMMUChecks {
+impl NUMAChecks {
     pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        IOMMUChecks { host_executor }
+        NUMAChecks { host_executor }
     }
 
     pub async fn run_all(&self) -> CheckGroupResult {
@@ -87,7 +93,7 @@ impl IOMMUChecks {
 }
 
 #[async_trait]
-impl CheckGroup for IOMMUChecks {
+impl CheckGroup for NUMAChecks {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
     }
@@ -97,7 +103,7 @@ impl CheckGroup for IOMMUChecks {
     }
 
     fn description(&self) -> &str {
-        "IOMMU capability checks"
+        "NUMA capability checks"
     }
 
     async fn run(&self) -> CheckGroupResult {
@@ -105,8 +111,6 @@ impl CheckGroup for IOMMUChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Optional(
-            "PVH and some host device support not available on this system".into(),
-        )
+        CheckGroupCategory::Advisory
     }
 }

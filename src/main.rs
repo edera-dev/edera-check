@@ -2,11 +2,14 @@ mod checkers;
 mod helpers;
 mod recorders;
 
-use checkers::{iommu::IOMMUChecks, kernel::KernelChecks, pvh::PVHChecks, system::SystemChecks};
+use checkers::{
+    byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, numa::NUMAChecks,
+    pvh::PVHChecks, system::SystemChecks,
+};
 use clap::{Parser, Subcommand};
 use console::{Emoji, style};
 use helpers::{
-    CheckGroup, CheckGroupResult,
+    CheckGroup, CheckGroupCategory, CheckGroupResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
@@ -21,6 +24,7 @@ use std::{
     env, fs,
     fs::File,
     path::{Path, PathBuf},
+    process,
 };
 use tokio::task::JoinHandle;
 
@@ -46,7 +50,8 @@ enum Commands {
         #[arg(short, long, default_value_t = true)]
         record_hostinfo: bool,
 
-        /// Run only selected checks, instead of default behavior of running all
+        /// Run only selected checks, instead of default behavior of running all.
+        /// Will override all other check enablement flags.
         #[arg(short, long, value_delimiter = ',')]
         only_checks: Vec<String>,
 
@@ -63,7 +68,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Preinstall {
-            byo_kernel: _,
+            byo_kernel,
             record_hostinfo,
             only_checks,
             report_dir,
@@ -75,15 +80,45 @@ async fn main() -> Result<()> {
             // this is effectively a silent no-op.
             let host_executor = HostNamespaceExecutor::new();
 
+            // See if we are already booted under Edera. If so, error out and suggest `postinstall`
+            // as the command to run.
+            match host_executor
+                .spawn_in_host_ns(async {
+                    if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
+                        return false;
+                    }
+                    let xen = Path::new("/sys/hypervisor/type");
+                    xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
+                })
+                .await
+            {
+                // TODO(bml) later we may add a `postinstall` command,
+                // but for now all we have is `preinstall` and running it under an active Edera boot
+                // is not supported or useful.
+                Ok(true) => {
+                    println!("{}", style("Edera is already installed").red().bold());
+                    process::exit(1);
+                }
+                Ok(false) => (),
+                Err(e) => {
+                    bail!("Error: {}", e);
+                }
+            };
+
             let mut groups: Vec<Box<dyn CheckGroup>> = vec![
                 Box::new(SystemChecks::new(host_executor.clone())),
                 Box::new(PVHChecks::new(host_executor.clone())),
                 Box::new(KernelChecks::new(host_executor.clone())),
                 Box::new(IOMMUChecks::new(host_executor.clone())),
+                Box::new(NUMAChecks::new(host_executor.clone())),
             ];
 
             if record_hostinfo {
                 groups.push(Box::new(SystemRecorder::new(host_executor.clone())));
+            }
+
+            if byo_kernel {
+                groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));
             }
 
             // If only-checks is specified, only include checks that match the provided ID.
@@ -97,7 +132,10 @@ async fn main() -> Result<()> {
                 groups.retain(|group| only_checks.contains(&group.id().to_string()));
             }
 
-            let mut final_result = Passed;
+            groups.sort_by_key(|g| g.category());
+
+            let mut required_groups_result = Passed;
+            let mut all_groups_result = Passed;
 
             let hostname = host_executor
                 .spawn_in_host_ns(async { std::fs::read_to_string("/etc/hostname").unwrap() })
@@ -114,29 +152,37 @@ async fn main() -> Result<()> {
             // Run each check group
             for group in groups {
                 println!(
-                    "{} {} - {}",
+                    "{} {} [{}] - {}",
                     style("Running Group").cyan(),
                     style(group.name()).cyan().bold(),
+                    style(group.category()).white().bold(),
                     group.description()
                 );
 
                 let check_group_result = group.run().await;
 
-                check_group_result.log_group();
-
-                // if env::var("EDERA_PREFLIGHT_VERBOSE").unwrap_or_default() == "true" {
                 check_group_result.log_individual_checks();
-                // }
+
+                check_group_result.log_group(group.category());
 
                 // Set final result to Failed if we failed and aren't already in an Errored state
-                if !matches!(final_result, Errored(_))
-                    && matches!(check_group_result.result, Failed(_))
-                {
-                    final_result = Failed(String::from("group failed"));
+                // However, do not allow Optional groups to count towards Errored or Failed state.
+                if matches!(check_group_result.result, Failed(_)) {
+                    if matches!(group.category(), CheckGroupCategory::Required)
+                        && !matches!(required_groups_result, Errored(_))
+                    {
+                        required_groups_result = Failed(String::from("group failed"));
+                    } else if !matches!(all_groups_result, Errored(_)) {
+                        all_groups_result = Failed(String::from("group failed"));
+                    }
                 }
 
                 if matches!(check_group_result.result, Errored(_)) {
-                    final_result = Errored(String::from("group errored"));
+                    if matches!(group.category(), CheckGroupCategory::Required) {
+                        required_groups_result = Errored(String::from("group errored"));
+                    } else {
+                        all_groups_result = Errored(String::from("group errored"));
+                    }
                 }
 
                 write_group_report(group, &check_group_result, &base_path)?;
@@ -144,8 +190,8 @@ async fn main() -> Result<()> {
 
             create_gzip_from(base_path, host_executor.clone()).await?;
 
-            match final_result {
-                Errored(_) | Failed(_) => bail!("Preflight checks did not pass"),
+            match required_groups_result {
+                Errored(_) | Failed(_) => bail!("Required preinstall checks did not pass"),
                 _ => Ok(()),
             }
         }
