@@ -2,14 +2,12 @@ use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
+    kernel as khelper,
 };
 
-use anyhow::{Result, bail};
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
-use log::debug;
-use procfs::{Current, sys::kernel};
-use std::{fs, path::PathBuf, process::Command};
+use procfs::sys::kernel;
 
 const GROUP_IDENTIFIER: &str = "byokernel";
 const NAME: &str = "Bring-Your-Own Kernel Checks";
@@ -65,36 +63,28 @@ impl BYOKernelChecks {
 
     async fn version_is_good(&self) -> CheckResult {
         let name = String::from("Host Kernel Version Is Good");
-        let mut result = Passed;
+        let floor = kernel::Version::new(KVER_FLOOR_MAJOR, KVER_FLOOR_MINOR, KVER_FLOOR_PATCH);
 
-        // Get host kernel version
-        let current = self
-            .host_executor
-            .spawn_in_host_ns(async { kernel::Version::current() })
-            .await
-            .expect("error spawning in host");
+        let passed = khelper::host_kver_above_floor(&self.host_executor, floor).await;
 
-        if let Err(e) = current {
-            return CheckResult::new(&name, Errored(e.to_string()));
+        match passed {
+            Err(e) => CheckResult::new(&name, Errored(e.to_string())),
+            Ok(true) => CheckResult::new(&name, Passed),
+            Ok(false) => CheckResult::new(
+                &name,
+                Failed(String::from("current kernel version is unsupported")),
+            ),
         }
-        let current = current.unwrap();
-        let lowest = kernel::Version::new(KVER_FLOOR_MAJOR, KVER_FLOOR_MINOR, KVER_FLOOR_PATCH);
-
-        if current < lowest {
-            result = Failed(String::from("current kernel version is unsupported"));
-        }
-        CheckResult::new(&name, result)
     }
 
     async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
-        let mut result = Passed;
 
         let required_modules: Vec<String> =
             REQUIRED_MODULES.iter().map(|s| s.to_string()).collect();
 
         // Search builtin modules
-        let remaining = match self.find_builtins(&required_modules).await {
+        let remaining = match khelper::find_builtins(&self.host_executor, &required_modules).await {
             Ok(r) => r,
             Err(e) => {
                 return CheckResult::new(&name, Errored(format!("getting kernel builtins {e}")));
@@ -102,7 +92,7 @@ impl BYOKernelChecks {
         };
 
         // Search loaded modules
-        let remaining = match self.find_loaded(&remaining).await {
+        let remaining = match khelper::find_loaded(&self.host_executor, &remaining).await {
             Ok(r) => r,
             Err(e) => {
                 return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
@@ -110,112 +100,17 @@ impl BYOKernelChecks {
         };
 
         // Search loadable modules
-        let remaining = match self.find_loadable(&remaining).await {
+        let remaining = match khelper::find_loadable(&self.host_executor, &remaining).await {
             Ok(r) => r,
             Err(e) => {
                 return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
             }
         };
         if !remaining.is_empty() {
-            result = Failed(format!("missing {:?}", remaining))
+            return CheckResult::new(&name, Failed(format!("missing {:?}", remaining)));
         }
 
-        CheckResult::new(&name, result)
-    }
-
-    /// Looks at builtins for kernel_version and compares that to the list of
-    /// required modules.
-    /// Returns a vec of everything from required_modules that WAS NOT found in builtins.
-    async fn find_builtins(&self, required_modules: &[String]) -> Result<Vec<String>> {
-        let mut modules_to_find: Vec<String> = required_modules.to_owned();
-
-        // read host builtins
-        let builtins = self
-            .host_executor
-            .spawn_in_host_ns(async move {
-                // Get kernel version
-                let output = Command::new("uname").arg("-r").output()?;
-
-                if !output.status.success() {
-                    let error_message = String::from_utf8_lossy(&output.stderr);
-                    bail!("{}", error_message);
-                }
-                let kernel_version = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                let path = PathBuf::from(format!("/lib/modules/{kernel_version}/modules.builtin"));
-                fs::read_to_string(path).map_err(|e| anyhow::anyhow!(e))
-            })
-            .await??;
-
-        for builtin in builtins.lines() {
-            let found = modules_to_find
-                .iter()
-                .position(|required| builtin.contains(required));
-
-            if let Some(index) = found {
-                debug!("builtin {}", modules_to_find[index]);
-                modules_to_find.remove(index);
-            }
-        }
-
-        Ok(modules_to_find)
-    }
-
-    /// Looks at loaded modules for the current host kernel and compares that to the list of
-    /// required modules.
-    /// Returns a vec of everything from required_modules that WAS NOT loaded.
-    async fn find_loaded(&self, required_modules: &[String]) -> Result<Vec<String>> {
-        let mut modules_to_find: Vec<String> = required_modules.to_owned();
-
-        let modules = self
-            .host_executor
-            .spawn_in_host_ns(async move { procfs::KernelModules::current() })
-            .await?;
-
-        let modules = modules.unwrap();
-
-        for (name, _) in modules.0.iter() {
-            let found = modules_to_find.iter().position(|required| required == name);
-
-            if let Some(index) = found {
-                debug!("module {}", modules_to_find[index]);
-                modules_to_find.remove(index);
-            }
-        }
-
-        Ok(modules_to_find)
-    }
-
-    /// Looks at not-loaded-but-loadable modules for the current host kernel and compares
-    /// that to the list of required modules.
-    /// Returns a vec of everything from required_modules that is available to load (exists in
-    /// modules.dep) but is NOT currently loaded or builtin.
-    async fn find_loadable(&self, required_modules: &[String]) -> Result<Vec<String>> {
-        let mut modules_to_find: Vec<String> = required_modules.to_owned();
-        let dep_file = self
-            .host_executor
-            .spawn_in_host_ns(async move {
-                let output = Command::new("uname").arg("-r").output()?;
-                if !output.status.success() {
-                    let error_message = String::from_utf8_lossy(&output.stderr);
-                    bail!("{}", error_message);
-                }
-                let kernel_version = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                let path = PathBuf::from(format!("/lib/modules/{kernel_version}/modules.dep"));
-                fs::read_to_string(path).map_err(|e| anyhow::anyhow!(e))
-            })
-            .await??;
-
-        for line in dep_file.lines() {
-            let module_path = line.split(':').next().unwrap_or("");
-            let found = modules_to_find
-                .iter()
-                .position(|required| module_path.contains(required.as_str()));
-            if let Some(index) = found {
-                debug!("available {}", modules_to_find[index]);
-                modules_to_find.remove(index);
-            }
-        }
-        Ok(modules_to_find)
+        CheckResult::new(&name, Passed)
     }
 }
 
