@@ -3,7 +3,7 @@ use crate::checkers::preinstall::{
     pvh::PVHChecks, system::SystemChecks,
 };
 
-use crate::{create_base_path, create_gzip_from, write_group_report};
+use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
 use anyhow::Result;
 use console::style;
 
@@ -16,12 +16,7 @@ use crate::helpers::{
 use crate::recorders::preinstall::system::SystemRecorder as prerecorder;
 
 use anyhow::{anyhow, bail};
-use std::{
-    collections::HashSet,
-    env, fs,
-    path::{Path, PathBuf},
-    process,
-};
+use std::{collections::HashSet, env, path::PathBuf, process};
 
 pub async fn do_preinstall(
     byo_kernel: bool,
@@ -38,16 +33,7 @@ pub async fn do_preinstall(
 
     // See if we are already booted under Edera. If so, error out and suggest `postinstall`
     // as the command to run.
-    match host_executor
-        .spawn_in_host_ns(async {
-            if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
-                return false;
-            }
-            let xen = Path::new("/sys/hypervisor/type");
-            xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
-        })
-        .await
-    {
+    match booted_under_edera(&host_executor).await {
         Ok(true) => {
             println!(
                 "{}",

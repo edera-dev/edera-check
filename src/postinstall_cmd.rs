@@ -4,7 +4,7 @@ use crate::checkers::postinstall::{
 };
 
 use crate::recorders::postinstall::system::SystemRecorder as postrecorder;
-use crate::{create_base_path, create_gzip_from, write_group_report};
+use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
 
 use anyhow::Result;
 use console::style;
@@ -37,16 +37,7 @@ pub async fn do_postinstall(
 
     // See if we are booted under Edera. If not, error out and suggest `preinstall`
     // as the command to run.
-    match host_executor
-        .spawn_in_host_ns(async {
-            if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
-                return false;
-            }
-            let xen = Path::new("/sys/hypervisor/type");
-            xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
-        })
-        .await
-    {
+    match booted_under_edera(&host_executor).await {
         Ok(true) => {}
         Ok(false) => {
             println!(

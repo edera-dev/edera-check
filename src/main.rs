@@ -176,3 +176,16 @@ fn write_group_report(
     }
     Ok(())
 }
+
+async fn booted_under_edera(host_executor: &HostNamespaceExecutor) -> Result<bool> {
+    host_executor
+        .spawn_in_host_ns(async {
+            if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
+                return false;
+            }
+            let xen = Path::new("/sys/hypervisor/type");
+            xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
+        })
+        .await
+        .context("failed to check Edera boot status")
+}
