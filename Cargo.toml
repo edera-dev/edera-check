@@ -2,7 +2,16 @@
 name = "edera-check"
 version = "0.2.0"
 edition = "2024"
+license = "Apache-2.0"
 description = "CLI to run checks before installing or using Edera"
+homepage = "https://github.com/edera-dev/edera-check"
+repository = "https://github.com/edera-dev/edera-check"
+keywords = ["edera", "preinstall", "postinstall", "cli", "check", "preflight"]
+exclude = [
+        ".github",
+        ".release-plz.toml",
+        "**/*.orig"
+]
 
 [dependencies]
 anyhow = "1.0.99"
