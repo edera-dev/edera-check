@@ -45,29 +45,35 @@ sh hack/debug/local.sh
 ```text
 » sudo edera-check preinstall
 
-Running Group System Checks - System requirement checks
-✅ System Checks: Passed
+Collecting information about the current host as part of locally-generated preinstall report.
+The information collected will remain on this host.
+Running Group System Checks [Required] - System requirement checks
     • Enough Memory: Passed
     • Enough Disk: Passed
-Running Group PVH Checks - PVH capability checks
-✅ PVH Checks: Passed
-    • PVH Support: Passed
-Running Group Kernel Checks - Kernel requirement checks
-✅ Kernel Checks: Passed
+✅ System Checks: Passed
+Running Group Kernel Checks [Required] - Kernel requirement checks
     • Host Has Necessary Modules: Passed
     • Host Kernel Version Is Good: Passed
-Running Group IOMMU Checks - IOMMU capability checks
-✅ IOMMU Checks: Passed
+✅ Kernel Checks: Passed
+Running Group IOMMU Checks [Optional] - IOMMU capability checks
     • IOMMU Support: Passed
-Running Group System Info Recorder - Record system information for reporting purposes
+✅ IOMMU Checks: Passed
+Running Group PVH Checks [Optional] - PVH capability checks
+    • PVH Support: Passed
+✅ PVH Checks: Passed
+Running Group NUMA Checks [Advisory] - NUMA capability checks
+    • IOMMU Support: Passed
+✅ NUMA Checks: Passed
+Running Group System Info Recorder [Advisory] - Record system information for reporting purposes
+    • Captured lspci -vvv: Passed
+    • Captured dmidecode: Passed
+    • Captured /proc/cpuinfo: Passed
+    • Captured /proc/cmdline: Passed
+    • Captured /boot/grub2/grub.cfg: Passed
+    • Captured boot/config-6.18.7-200.fc43.x86_64: Passed
+    • Record current host kernel loaded modules: Passed
 ✅ System Info Recorder: Passed
-    • Record lspci -vvv: Passed
-    • Record dmidecode: Passed
-    • Record /proc/cpuinfo: Passed
-    • Record /proc/cmdline: Passed
-    • Record /boot/grub2/grub.cfg: Passed
-    • Record boot/config-6.18.7-200.fc43.x86_64: Passed
-✨ All Done! Report saved: /tmp/edera-preinstall-report-StolidWingnut-20260213-222635.tar.gz
+✨ All Done! Report saved: ./edera-preinstall-report-StolidWingnut-20260218-003925.tar.gz
 ```
 
 Exit code is **non-zero** if any check/group fails or errors.
