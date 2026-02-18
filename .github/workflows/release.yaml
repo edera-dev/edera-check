@@ -34,9 +34,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # zizmor: ignore[stale-action-refs] -- pinned to stable branch
 
-      - name: Install llvm deps
-        uses: ./.github/actions/install-llvm
-
       - name: generate cultivator token
         uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         id: generate-token
@@ -77,9 +74,6 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # zizmor: ignore[stale-action-refs] -- pinned to stable branch
-
-      - name: Install llvm deps
-        uses: ./.github/actions/install-llvm
 
       - name: generate cultivator token
         uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
