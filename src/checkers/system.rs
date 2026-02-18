@@ -25,7 +25,7 @@ impl SystemChecks {
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([self.enough_memory().boxed(), self.enough_disk().boxed()]).await;
 
-        let mut group_result = Failed("".into());
+        let mut group_result = Passed;
         for res in results.iter() {
             // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {

@@ -2,6 +2,7 @@ use anyhow::{Result, bail};
 use async_trait::async_trait;
 use flate2::read::GzDecoder;
 use futures::{FutureExt, future::join_all};
+use procfs::Current;
 use std::{
     io::Read,
     path::{Path, PathBuf},
@@ -36,6 +37,7 @@ impl SystemRecorder {
             self.record_cmdline().boxed(),
             self.record_grub_cfg().boxed(),
             self.record_kernel_cfg().boxed(),
+            self.record_loaded_modules().boxed(),
         ])
         .await;
 
@@ -185,6 +187,23 @@ impl SystemRecorder {
             name,
             Skipped(format!("no kernel config found in {:?}", files)),
         )
+    }
+
+    async fn record_loaded_modules(&self) -> CheckResult {
+        let name = "Record current host kernel loaded modules";
+        match self
+            .host_executor
+            .spawn_in_host_ns(async move { procfs::KernelModules::current() })
+            .await
+        {
+            Ok(Ok(list)) => CheckResult::new_with_output(
+                name,
+                Passed,
+                Some(list.0.into_keys().collect::<Vec<_>>().join("\n")),
+            ),
+            Ok(Err(e)) => CheckResult::new(name, Errored(e.to_string())),
+            Err(e) => CheckResult::new(name, Skipped(e.to_string())),
+        }
     }
 
     async fn current_kernel_version(&self) -> Result<String> {
