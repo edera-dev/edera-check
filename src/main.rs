@@ -16,8 +16,10 @@ use std::{
     fs,
     fs::File,
     path::{Path, PathBuf},
+    process,
 };
 use tokio::task::JoinHandle;
+use nix::unistd::Uid;
 
 static SPARKLE: Emoji = Emoji("✨", "[*]");
 
@@ -70,6 +72,11 @@ enum Commands {
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() -> Result<()> {
     env_logger::init();
+
+    if !Uid::effective().is_root() {
+        println!("{}", style("This tool must be run as root").red().bold());
+        process::exit(1);
+    }
 
     let cli = Cli::parse();
     match cli.command {
