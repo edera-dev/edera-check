@@ -114,7 +114,9 @@ async fn main() -> Result<()> {
             ];
 
             if record_hostinfo {
-                println!("Collecting information about the current host as part of locally-generated preinstall report.");
+                println!(
+                    "Collecting information about the current host as part of locally-generated preinstall report."
+                );
                 println!("The information collected will remain on this host.");
                 groups.push(Box::new(SystemRecorder::new(host_executor.clone())));
             }
