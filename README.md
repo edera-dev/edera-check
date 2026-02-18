@@ -35,7 +35,7 @@ docker run \
   --pull always \
   --pid host \
   --privileged \
-  us-central1-docker.pkg.dev/edera-protect/staging/edera-check:main preinstall
+  gchr.io/edera-dev/edera-check:main preinstall
 ```
 
 `podman` et al should also work.
