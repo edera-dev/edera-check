@@ -11,13 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- collect more hardware info
-- add report bundle
-- add more checks and image publish
-- allow skipping groups and add readme
-- add dockerfile and build scripts
-- clean up logging a bit
-- initial add of preflight utility
+- initial add of edera-check utility
 
 ### Fixed
 
