@@ -117,7 +117,7 @@ impl CheckGroupResult {
                         style(s).yellow().dim()
                     )
                 } else {
-                    println!("{} {}", ERROR, style(s).bright().yellow().bold())
+                    println!("{} {}", ERROR, style(s).bright().red().bold())
                 }
             }
             CheckResultValue::Errored(_) => {

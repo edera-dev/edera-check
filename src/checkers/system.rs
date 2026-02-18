@@ -25,15 +25,15 @@ impl SystemChecks {
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([self.enough_memory().boxed(), self.enough_disk().boxed()]).await;
 
-        let mut group_result = Passed;
+        let mut group_result = Failed("".into());
         for res in results.iter() {
             // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {
-                group_result = Failed(String::from("group failed"));
+                group_result = Failed("".into());
             }
 
             if matches!(res.result, Errored(_)) {
-                group_result = Errored(String::from("group errored"));
+                group_result = Errored("".into());
             }
         }
 

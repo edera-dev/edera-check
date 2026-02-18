@@ -9,7 +9,7 @@ use checkers::{
 use clap::{Parser, Subcommand};
 use console::{Emoji, style};
 use helpers::{
-    CheckGroup, CheckGroupResult,
+    CheckGroup, CheckGroupCategory, CheckGroupResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
@@ -134,7 +134,8 @@ async fn main() -> Result<()> {
 
             groups.sort_by_key(|g| g.category());
 
-            let mut final_result = Passed;
+            let mut required_groups_result = Passed;
+            let mut all_groups_result = Passed;
 
             let hostname = host_executor
                 .spawn_in_host_ns(async { std::fs::read_to_string("/etc/hostname").unwrap() })
@@ -165,14 +166,23 @@ async fn main() -> Result<()> {
                 check_group_result.log_group(group.category());
 
                 // Set final result to Failed if we failed and aren't already in an Errored state
-                if !matches!(final_result, Errored(_))
-                    && matches!(check_group_result.result, Failed(_))
-                {
-                    final_result = Failed(String::from("group failed"));
+                // However, do not allow Optional groups to count towards Errored or Failed state.
+                if matches!(check_group_result.result, Failed(_)) {
+                    if matches!(group.category(), CheckGroupCategory::Required)
+                        && !matches!(required_groups_result, Errored(_))
+                    {
+                        required_groups_result = Failed(String::from("group failed"));
+                    } else if !matches!(all_groups_result, Errored(_)) {
+                        all_groups_result = Failed(String::from("group failed"));
+                    }
                 }
 
                 if matches!(check_group_result.result, Errored(_)) {
-                    final_result = Errored(String::from("group errored"));
+                    if matches!(group.category(), CheckGroupCategory::Required) {
+                        required_groups_result = Errored(String::from("group errored"));
+                    } else {
+                        all_groups_result = Errored(String::from("group errored"));
+                    }
                 }
 
                 write_group_report(group, &check_group_result, &base_path)?;
@@ -180,8 +190,8 @@ async fn main() -> Result<()> {
 
             create_gzip_from(base_path, host_executor.clone()).await?;
 
-            match final_result {
-                Errored(_) | Failed(_) => bail!("Preflight checks did not pass"),
+            match required_groups_result {
+                Errored(_) | Failed(_) => bail!("Required preinstall checks did not pass"),
                 _ => Ok(()),
             }
         }
