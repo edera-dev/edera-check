@@ -42,7 +42,7 @@ jobs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
     - name: Harden the runner (Audit all outbound calls)
-      uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+      uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
       with:
         egress-policy: audit
 
@@ -76,7 +76,7 @@ jobs:
 
     steps:
     - name: 'Harden runner'
-      uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+      uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
       with:
         egress-policy: audit
 
@@ -92,7 +92,7 @@ jobs:
         cache-binary: false
 
     - name: 'Login to ghcr'
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
       with:
         registry: ghcr.io
         username: '${{ github.actor }}'
