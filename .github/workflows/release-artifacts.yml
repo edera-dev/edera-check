@@ -86,14 +86,63 @@ jobs:
         submodules: recursive
         persist-credentials: false
 
-    - name: 'Build and sign ${{ matrix.component }} image'
-      uses: edera-dev/actions/build-and-sign-image@v0.0.6
+    - name: 'Setup docker buildx'
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       with:
-        component: '${{ matrix.component }}'
-        event: '${{ github.event_name }}'
-        repositories: |
-          ghcr.io/edera-dev/${{ matrix.component }}
-          ${{ secret.GCP_REGION }}-docker.pkg.dev/${{ secret.GCP_PROJECT }}/staging/${{ matrix.component }}
-        gcp_region: '${{ secret.GCP_REGION }}'
-        gcp_workload_identity_provider: '${{ secret.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
-        gcp_service_account: '${{ secret.GCP_SERVICE_ACCOUNT }}'
+        cache-binary: false
+
+    - name: 'Login to ghcr'
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+      with:
+        registry: ghcr.io
+        username: '${{ github.actor }}'
+        password: '${{ github.token }}'
+
+    - name: Docker meta
+      uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+      id: meta
+      with:
+        images: |
+          ghcr.io/edera-dev/protect-${{ matrix.component }}
+        tags: |
+          # Tag with branch on push
+          type=ref,event=branch
+
+          # Tag with short sha on all events
+          type=sha,prefix=
+
+          # Tag version and stable on tag push
+          type=semver,pattern={{raw}}
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern=stable
+
+          # Tag nightly on schedule event
+          type=schedule,pattern=nightly
+
+    - name: 'Docker build and push protect-${{ matrix.component }}'
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      id: push
+      with:
+        file: Dockerfile
+        platforms: linux/amd64
+        tags: '${{ steps.meta.outputs.tags }}'
+        push: true
+
+    - name: 'Install cosign'
+      uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+    - name: 'Cosign sign all images'
+      shell: bash
+      run: |
+        images=""
+        for tag in ${TAGS}; do
+          pullstring="${tag}@${DIGEST}"
+          echo "Signing ${pullstring}"
+
+          cosign sign --yes "${pullstring}"
+        done
+      env:
+        TAGS: '${{ steps.meta.outputs.tags }}'
+        DIGEST: '${{ steps.push.outputs.digest }}'
