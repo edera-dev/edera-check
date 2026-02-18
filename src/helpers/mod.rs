@@ -1,5 +1,6 @@
 pub mod host_executor;
 pub mod kernel;
+pub mod services;
 
 use async_trait::async_trait;
 use console::{Emoji, style};

@@ -8,7 +8,8 @@ use checkers::preinstall::{
 };
 
 use checkers::postinstall::{
-    guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, services::ServiceChecks,
+    guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, kube::KubeChecks,
+    services::ServiceChecks,
 };
 
 use clap::{Parser, Subcommand};
@@ -271,6 +272,7 @@ async fn main() -> Result<()> {
                 Box::new(GuestTypeChecks::new(host_executor.clone())),
                 Box::new(PostinstallKernelChecks::new(host_executor.clone())),
                 Box::new(ServiceChecks::new(host_executor.clone())),
+                Box::new(KubeChecks::new(host_executor.clone())),
             ];
 
             if record_hostinfo {

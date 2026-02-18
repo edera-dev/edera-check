@@ -9,27 +9,22 @@ use crate::helpers::{
     services as svchelpers,
 };
 
-const GROUP_IDENTIFIER: &str = "services";
-const NAME: &str = "Service Status Checks";
+const GROUP_IDENTIFIER: &str = "kubernetes";
+const NAME: &str = "Kubernetes Capability Checks";
 
-pub struct ServiceChecks {
+pub struct KubeChecks {
     host_executor: HostNamespaceExecutor,
 }
 
-impl ServiceChecks {
+impl KubeChecks {
     pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        ServiceChecks { host_executor }
+        KubeChecks { host_executor }
     }
 
     /// Run all the recorders asynchronously, then
     /// join and collect the results.
     pub async fn run_all(&self) -> CheckGroupResult {
-        let results = join_all([
-            self.check_daemon().boxed(),
-            self.check_storage().boxed(),
-            self.check_network().boxed(),
-        ])
-        .await;
+        let results = join_all([self.check_cri().boxed(), self.check_kubelet().boxed()]).await;
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -50,9 +45,9 @@ impl ServiceChecks {
         }
     }
 
-    async fn check_daemon(&self) -> CheckResult {
-        let name = "Protect daemon status";
-        let sname = "protect-daemon";
+    async fn check_cri(&self) -> CheckResult {
+        let name = "Protect CRI daemon status";
+        let sname = "protect-cri";
         let init = svchelpers::detect_init_system(&self.host_executor).await;
         debug!("detected init system: {:?}\n", init);
 
@@ -66,25 +61,9 @@ impl ServiceChecks {
         }
     }
 
-    async fn check_storage(&self) -> CheckResult {
-        let name = "Protect storage daemon status";
-        let sname = "protect-storage";
-        let init = svchelpers::detect_init_system(&self.host_executor).await;
-        debug!("detected init system: {:?}\n", init);
-
-        match svchelpers::is_running(&self.host_executor, sname.into(), init).await {
-            Ok(true) => CheckResult::new(name, Passed),
-            Ok(false) => CheckResult::new(name, Failed(format!("{} not running", &sname))),
-            Err(e) => CheckResult::new(
-                name,
-                Errored(format!("failed to check service {sname}: {e}")),
-            ),
-        }
-    }
-
-    async fn check_network(&self) -> CheckResult {
-        let name = "Protect network daemon status";
-        let sname = "protect-network";
+    async fn check_kubelet(&self) -> CheckResult {
+        let name = "kubelet status";
+        let sname = "kubelet";
         let init = svchelpers::detect_init_system(&self.host_executor).await;
         debug!("detected init system: {:?}\n", init);
 
@@ -100,7 +79,7 @@ impl ServiceChecks {
 }
 
 #[async_trait]
-impl CheckGroup for ServiceChecks {
+impl CheckGroup for KubeChecks {
     fn id(&self) -> &str {
         GROUP_IDENTIFIER
     }
@@ -110,7 +89,7 @@ impl CheckGroup for ServiceChecks {
     }
 
     fn description(&self) -> &str {
-        "Check status of required host services"
+        "Check status of Kubernetes integration"
     }
 
     async fn run(&self) -> CheckGroupResult {
@@ -118,6 +97,6 @@ impl CheckGroup for ServiceChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Required
+        CheckGroupCategory::Optional("Kubernetes feature not available on this system".into())
     }
 }
