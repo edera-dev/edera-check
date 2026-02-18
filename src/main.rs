@@ -12,6 +12,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use flate2::{Compression, write::GzEncoder};
 use log::debug;
+use nix::unistd::Uid;
 use std::{
     fs,
     fs::File,
@@ -19,7 +20,6 @@ use std::{
     process,
 };
 use tokio::task::JoinHandle;
-use nix::unistd::Uid;
 
 static SPARKLE: Emoji = Emoji("✨", "[*]");
 
