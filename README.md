@@ -18,6 +18,12 @@ sudo edera-check --help
 sudo edera-check preinstall
 ```
 
+### Run postinstall checks and generate system report
+
+```bash
+sudo edera-check postinstall
+```
+
 ### Run official release via Docker
 
 ```bash
@@ -86,6 +92,7 @@ Run
 
 ``` bash
 edera-check preinstall --help
+edera-check postinstall --help
 ```
 
 for a list of available configuration options and usage tweaks.
