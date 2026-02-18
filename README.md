@@ -1,6 +1,6 @@
 # edera-check CLI
 
-CLI tool to run checks and generate system reports before installing or using Edera.
+A CLI tool to validate your system is ready to install or use Edera, and generate local readiness reports.
 
 ---
 
@@ -18,6 +18,16 @@ sudo edera-check --help
 sudo edera-check preinstall
 ```
 
+Run this on fresh system without Edera to validate it is ready for an Edera install.
+
+### Run postinstall checks and generate system report
+
+```bash
+sudo edera-check postinstall
+```
+
+Run this on a system that has been booted into an Edera installation to validate it is functional and ready to use.
+
 ### Run official release via Docker
 
 ```bash
@@ -25,10 +35,10 @@ docker run \
   --pull always \
   --pid host \
   --privileged \
-  us-central1-docker.pkg.dev/edera-protect/staging/edera-check:main preinstall
+  gchr.io/edera-dev/edera-check:main preinstall
 ```
 
-Podman et al should also work.
+`podman` et al should also work.
 
 ### Run locally from repo root via Docker
 
@@ -86,6 +96,7 @@ Run
 
 ``` bash
 edera-check preinstall --help
+edera-check postinstall --help
 ```
 
 for a list of available configuration options and usage tweaks.

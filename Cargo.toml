@@ -2,7 +2,16 @@
 name = "edera-check"
 version = "0.2.0"
 edition = "2024"
+license = "Apache-2.0"
 description = "CLI to run checks before installing or using Edera"
+homepage = "https://github.com/edera-dev/edera-check"
+repository = "https://github.com/edera-dev/edera-check"
+keywords = ["edera", "preinstall", "postinstall", "cli", "check", "preflight"]
+exclude = [
+        ".github",
+        ".release-plz.toml",
+        "**/*.orig"
+]
 
 [dependencies]
 anyhow = "1.0.99"
@@ -11,7 +20,7 @@ env_logger = "0.11.8"
 flate2 = "1.1.2"
 log = "0.4.28"
 procfs = "0.18.0"
-sysinfo = "0.36.1"
+sysinfo = "0.38.1"
 tar = "0.4.44"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
