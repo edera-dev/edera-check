@@ -26,12 +26,6 @@ on:
 permissions:
   contents: read
 
-env:
-  GCP_REGION: us-central1
-  GCP_PROJECT: edera-protect
-  GCP_WORKLOAD_IDENTITY_PROVIDER: 'projects/914729349132/locations/global/workloadIdentityPools/prod-github-jr1s/providers/prod-github'
-  GCP_SERVICE_ACCOUNT: 'edera-dev-preflight-sa@edera-protect.iam.gserviceaccount.com'
-
 jobs:
   # Implementing a gate like this isn't great since the workflow will still
   # run on release events. Github Actions does not have a way to filter on
@@ -99,7 +93,7 @@ jobs:
         event: '${{ github.event_name }}'
         repositories: |
           ghcr.io/edera-dev/${{ matrix.component }}
-          ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/staging/${{ matrix.component }}
-        gcp_region: '${{ env.GCP_REGION }}'
-        gcp_workload_identity_provider: '${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
-        gcp_service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+          ${{ secret.GCP_REGION }}-docker.pkg.dev/${{ secret.GCP_PROJECT }}/staging/${{ matrix.component }}
+        gcp_region: '${{ secret.GCP_REGION }}'
+        gcp_workload_identity_provider: '${{ secret.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+        gcp_service_account: '${{ secret.GCP_SERVICE_ACCOUNT }}'
