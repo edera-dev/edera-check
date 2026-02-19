@@ -86,7 +86,7 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ needs.build-cross.outputs.cross-revision }}
 
       - name: cargo build
-        run: hack/build/cargo.sh build
+        run: cargo build
 
   clippy:
     runs-on: ubuntu-latest
