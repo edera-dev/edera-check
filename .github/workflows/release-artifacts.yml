@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       protect_ref:
-        description: 'Edera commit/branch/tag'
+        description: 'Commit/branch/tag'
         default: ''
 
   # Nightly build from HEAD
@@ -27,42 +27,9 @@ permissions:
   contents: read
 
 jobs:
-  # Implementing a gate like this isn't great since the workflow will still
-  # run on release events. Github Actions does not have a way to filter on
-  # tags for a release event yet so we are stuck with this. The other option
-  # was to use the push event and filter on tags but since we're using push
-  # events to publish unstable tags on main, it is cleaner to use release
-  # events to trigger a true release of stable artifacts.
-  release-gate:
-    name: 'Check if this is the correct GitHub release event'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
-    steps:
-    - name: Harden the runner (Audit all outbound calls)
-      uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
-      with:
-        egress-policy: audit
-
-    - name: 'Check event'
-      id: check
-      run: |
-        echo "Since GitHub doesn't have a way to filter for specific tags in the release event we need to implement this dumb check"
-        run=true
-        if [[ '${{ github.event_name }}' == 'release' ]] && [[ '${{ github.ref_name }}' =~ 'chart-*' ]]; then
-          run=false
-        fi
-        echo "Workflow should run: ${run}"
-        echo "should_run=${run}" >> ${GITHUB_OUTPUT}
-
   oci:
     name: 'Build and publish ${{ matrix.component }} images'
-    # Check if this is the proper release event.
-    # TODO: remove this when actions has a better answer
-    if: ${{ needs.release-gate.outputs.should_run == 'true' }}
-    needs: [release-gate]
+    if: ${{ github.repository_owner == 'edera-dev' && (github.event_name == 'release' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -146,3 +113,92 @@ jobs:
       env:
         TAGS: '${{ steps.meta.outputs.tags }}'
         DIGEST: '${{ steps.push.outputs.digest }}'
+
+  upload-artifact:
+    if: ${{ github.repository_owner == 'edera-dev' && (github.event_name == 'release' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: Publish Binaries to Release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { os: linux, arch: x86_64, libc: musl, static: true, on: ubuntu-latest }
+          - { os: linux, arch: aarch64, libc: musl, static: true, on: ubuntu-latest }
+        binary:
+          - edera-check
+    runs-on: '${{ matrix.platform.on }}'
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # zizmor: ignore[stale-action-refs]
+
+      - name: 'Build and assemble ${{ matrix.binary }}'
+        run: |
+          set -e
+
+          # Build configuration
+          TARGET="${{ matrix.platform.arch }}-unknown-linux-${{ matrix.platform.libc }}"
+          rustup target add "$TARGET"
+
+          ${{ matrix.platform.static == true && 'export RUSTFLAGS="-Ctarget-feature=+crt-static"' || '' }}
+
+          cargo build --release --target "$TARGET"
+
+          # Platform name
+          PLATFORM="${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}"
+
+          # Tag name
+          TAG="${{ github.event.release.tag_name }}"
+          [ -z "$TAG" ] && TAG="${{ github.event.repository.default_branch }}"
+
+          # Assemble asset
+          mkdir -p target/assets
+          BINARY="${{ matrix.binary }}"
+          OUTPUT_NAME="${BINARY}_${TAG}_${PLATFORM}"
+
+          cp "target/${TARGET}/release/${BINARY}" "target/assets/${OUTPUT_NAME}"
+
+          cd target/assets
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${OUTPUT_NAME}" > "${OUTPUT_NAME}.sha256"
+          else
+            shasum -a 256 "${OUTPUT_NAME}" > "${OUTPUT_NAME}.sha256"
+          fi
+
+      - name: 'Upload ${{ matrix.binary }} to workflow run'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.binary }}-${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}
+          path: target/assets/${{ matrix.binary }}_*
+
+      - name: Generate cultivator token
+        if: ${{ github.event_name == 'release' }}
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        id: generate-token
+        with:
+          app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
+          private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
+
+      - name: 'Upload release artifacts with retry'
+        if: ${{ github.event_name == 'release' }}
+        uses: nick-fields/retry-action@7152eba30c6575329ac0576536151aca5a72780e # v3.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 10
+          retry_wait_seconds: 1
+          command: |
+            cd target/assets
+            gh release upload "${{ github.event.release.tag_name }}" --clobber ./*
+        env:
+          GITHUB_TOKEN: "${{ steps.generate-token.outputs.token }}"
