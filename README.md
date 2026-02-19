@@ -41,7 +41,7 @@ sudo edera-check --help
 sudo edera-check --help
 ```
 
-### Run preinstall checks and generate system report
+### Run `preinstall` checks and generate system report
 
 ```bash
 sudo edera-check preinstall
@@ -49,7 +49,7 @@ sudo edera-check preinstall
 
 Run this on fresh system without Edera to validate it is ready for an Edera install.
 
-### Run postinstall checks and generate system report
+### Run `postinstall` checks and generate system report
 
 ```bash
 sudo edera-check postinstall
