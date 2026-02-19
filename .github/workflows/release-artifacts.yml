@@ -89,8 +89,10 @@ jobs:
       id: push
       with:
         file: images/Containerfile.edera-check
-        platforms: linux/amd64
+        platforms: "linux/amd64,linux/arm64"
         tags: '${{ steps.meta.outputs.tags }}'
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         push: true
 
     - name: 'Install cosign'
@@ -110,8 +112,65 @@ jobs:
         TAGS: '${{ steps.meta.outputs.tags }}'
         DIGEST: '${{ steps.push.outputs.digest }}'
 
+  # Release builds are built with `musl` targets.
+  # Since we don't use a `musl` runner and distro-level "musl"-y shims
+  # tend to be very incomplete, we build inside our own published `cross-rs`
+  # `musl` OCI image contexts as defined by `Cross.toml` in the repo root.
+  build-cross:
+    name: Build cross-rs binaries
+    strategy:
+      matrix:
+        platform:
+          - { on: ubuntu-latest }
+          - { on: ubuntu-24.04-arm }
+    runs-on: '${{ matrix.platform.on }}'
+    outputs:
+      cross-revision: ${{ steps.cross-version.outputs.revision }}
+    steps:
+    - name: harden runner
+      uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+      with:
+        egress-policy: audit
+    - name: 'Checkout repository'
+      uses: actions/checkout@6b42224f41ee5dfe5395e27c8b2746f1f9955030 # v4.2.0
+      with:
+        submodules: recursive
+        persist-credentials: false
+    - name: Get cross-rs revision
+      id: cross-version
+      run: |
+        set -euo pipefail
+        CROSS_RS_REV=$(grep "CROSS_RS_REV=" ./hack/build/install-cross-rs.sh | cut -d'"' -f2)
+        if [ -z "${CROSS_RS_REV}" ]; then
+          echo "Error: Failed to extract CROSS_RS_REV from install-cross-rs.sh"
+          exit 1
+        fi
+        echo "Extracted cross-rs revision: ${CROSS_RS_REV}"
+        echo "revision=${CROSS_RS_REV}" >> $GITHUB_OUTPUT
+    - name: Restore cross-rs binaries from cache
+      id: cache-cross
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.cargo/bin/cross
+          ~/.cargo/bin/cross-util
+        key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ steps.cross-version.outputs.revision }}
+    - name: Build cross-rs binaries
+      if: steps.cache-cross.outputs.cache-hit != 'true'
+      run: |
+        ./hack/build/install-cross-rs.sh
+    - name: Save cross-rs binaries to cache
+      if: steps.cache-cross.outputs.cache-hit != 'true'
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.cargo/bin/cross
+          ~/.cargo/bin/cross-util
+        key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ steps.cross-version.outputs.revision }}
+
   upload-artifact:
     if: ${{ github.repository_owner == 'edera-dev' && (github.event_name == 'release' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: [build-cross]
     name: Publish Binaries to Release
     permissions:
       contents: write
@@ -120,7 +179,7 @@ jobs:
       matrix:
         platform:
           - { os: linux, arch: x86_64, libc: musl, static: true, on: ubuntu-latest }
-          - { os: linux, arch: aarch64, libc: musl, static: true, on: ubuntu-latest }
+          - { os: linux, arch: aarch64, libc: musl, static: true, on: ubuntu-24.04-arm }
         binary:
           - edera-check
     runs-on: '${{ matrix.platform.on }}'
@@ -136,10 +195,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@5d458579430fc14a04a08a1e7d3694f545e91ce6 # zizmor: ignore[stale-action-refs]
+      - name: Restore cross-rs binaries
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cargo/bin/cross
+            ~/.cargo/bin/cross-util
+          key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ inputs.cross-revision }}
 
-      - name: 'Build and assemble ${{ matrix.binary }}'
+      - name: 'Build and assemble ${{ matrix.binary }} ${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}'
         run: |
           set -e
 
@@ -149,7 +213,7 @@ jobs:
 
           ${{ matrix.platform.static == true && 'export RUSTFLAGS="-Ctarget-feature=+crt-static"' || '' }}
 
-          cargo build --release --target "$TARGET"
+          hack/build/cargo.sh --release --target "$TARGET"
 
           # Platform name
           PLATFORM="${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}"
