@@ -2,3 +2,4 @@
 pr_branch_prefix = "release/"
 pr_draft = true
 pr_labels = ["release"]
+release_always = true
