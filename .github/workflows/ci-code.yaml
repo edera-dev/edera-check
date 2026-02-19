@@ -11,7 +11,12 @@ permissions:
 jobs:
   build-cross:
     name: Build cross-rs binaries
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        on:
+        - ubuntu-latest
+        - ubuntu-24.04-arm
+    runs-on: "${{ matrix.on }}"
     outputs:
       cross-revision: ${{ steps.build-cross.outputs.revision }}
     steps:
@@ -53,13 +58,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch:
-        - x86_64
-        - aarch64
-    runs-on: ubuntu-latest
+        platform:
+        - { arch: x86_64, on: ubuntu-latest }
+        - { arch: aarch64, on: ubuntu-24.04-arm }
+    runs-on: "${{ matrix.platform.on }}"
     env:
-      TARGET_ARCH: "${{ matrix.arch }}"
-    name: 'Full build linux-${{ matrix.arch }}'
+      TARGET_ARCH: "${{ matrix.platform.arch }}"
+    name: 'Full build linux-${{ matrix.platform.arch }}'
     steps:
       - name: harden runner
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
@@ -79,9 +84,6 @@ jobs:
             ~/.cargo/bin/cross
             ~/.cargo/bin/cross-util
           key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ needs.build-cross.outputs.cross-revision }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: cargo build
         run: hack/build/cargo.sh build
