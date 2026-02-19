@@ -33,7 +33,6 @@ cargo install edera-check
 sudo edera-check --help
 ```
 
-
 ## Usage
 
 ### General usage
