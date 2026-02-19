@@ -28,12 +28,13 @@ jobs:
         run: cargo fmt --all -- --check
 
   full-build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        arch:
-        - x86_64
+        platform:
+          - { arch: x86_64, on: ubuntu-latest }
+          - { arch: aarch64, on: ubuntu-24.04-arm }
+    runs-on: '${{ matrix.platform.on }}'
     env:
       TARGET_ARCH: "${{ matrix.arch }}"
     name: 'Full build linux-${{ matrix.arch }}'
