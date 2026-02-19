@@ -1,0 +1,53 @@
+# Release builds are built with `musl` targets.
+# Since we don't use a `musl` runner and distro-level "musl"-y shims
+# tend to be very incomplete, we build inside our own published `cross-rs`
+# `musl` OCI image contexts as defined by `Cross.toml` in the repo root.
+name: 'Build cross-rs'
+description: 'Install or restore cross-rs binaries for cross-compilation'
+outputs:
+  revision:
+    description: 'The cross-rs revision that was installed'
+    value: ${{ steps.cross-version.outputs.revision }}
+  cache-hit:
+    description: 'Whether the cache was hit'
+    value: ${{ steps.cache-cross.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get cross-rs revision
+      id: cross-version
+      shell: bash
+      run: |
+        set -euo pipefail
+        CROSS_RS_REV=$(grep "CROSS_RS_REV=" ./hack/build/install-cross-rs.sh | cut -d'"' -f2)
+        if [ -z "${CROSS_RS_REV}" ]; then
+          echo "Error: Failed to extract CROSS_RS_REV from install-cross-rs.sh"
+          exit 1
+        fi
+        echo "Extracted cross-rs revision: ${CROSS_RS_REV}"
+        echo "revision=${CROSS_RS_REV}" >> $GITHUB_OUTPUT
+
+    - name: Restore cross-rs binaries from cache
+      id: cache-cross
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.cargo/bin/cross
+          ~/.cargo/bin/cross-util
+        key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ steps.cross-version.outputs.revision }}
+
+    - name: Build cross-rs binaries
+      if: steps.cache-cross.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        ./hack/build/install-cross-rs.sh
+
+    - name: Save cross-rs binaries to cache
+      if: steps.cache-cross.outputs.cache-hit != 'true'
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.cargo/bin/cross
+          ~/.cargo/bin/cross-util
+        key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ steps.cross-version.outputs.revision }}

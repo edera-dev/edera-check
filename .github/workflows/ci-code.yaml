@@ -9,6 +9,27 @@ permissions:
   contents: read # Default token to read
 
 jobs:
+  build-cross:
+    name: Build cross-rs binaries
+    runs-on: ubuntu-latest
+    outputs:
+      cross-revision: ${{ steps.build-cross.outputs.revision }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@6b42224f41ee5dfe5395e27c8b2746f1f9955030 # v4.2.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Build cross-rs
+        id: build-cross
+        uses: ./.github/actions/build-cross
+
   rustfmt:
     name: rustfmt
     runs-on: ubuntu-latest
@@ -31,10 +52,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - { arch: x86_64, on: ubuntu-latest }
-          - { arch: aarch64, on: ubuntu-24.04-arm }
-    runs-on: '${{ matrix.platform.on }}'
+        arch:
+        - x86_64
+        - aarch64
+    runs-on: ubuntu-latest
     env:
       TARGET_ARCH: "${{ matrix.arch }}"
     name: 'Full build linux-${{ matrix.arch }}'
@@ -51,7 +72,7 @@ jobs:
           persist-credentials: false
 
       - name: cargo build
-        run: cargo build
+        run: hack/build/cargo.sh build --target "$TARGET"
 
   clippy:
     runs-on: ubuntu-latest
