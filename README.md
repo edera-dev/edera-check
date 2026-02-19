@@ -6,12 +6,11 @@ A CLI tool to validate your system is ready to install or use Edera, and generat
 
 ## Installation
 
-## Usage
-
 ### Install via Cargo
 
 ``` bash
 cargo install edera-check
+sudo edera-check --help
 ```
 
 ### Run official release via Docker
@@ -26,13 +25,7 @@ docker run \
 
 `podman` et al should also work.
 
-### Run locally from repo root via Docker
-
-Recommended way to run locally and debug/validate, will use local copy of repo.
-
-```bash
-sh hack/debug/local.sh
-```
+## Usage
 
 ### General usage
 
@@ -116,3 +109,11 @@ for a list of available configuration options and usage tweaks.
 * [src/helpers](src/helpers) - Shared bits.
 
 By default, everything runs inside the container, and any system tools or binaries or other bits needed by the checkers can be installed or baked inside the container. For checks that need to jump out and touch the host filesystem or state, we use the [src/helpers/host_executor.rs](src/helpers/host_executor.rs).
+
+### Run locally from repo root via Docker
+
+Recommended way to run locally and debug/validate, will use local copy of repo.
+
+```bash
+sh hack/debug/local.sh
+```
