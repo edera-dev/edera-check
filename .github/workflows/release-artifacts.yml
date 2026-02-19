@@ -168,17 +168,19 @@ jobs:
             ~/.cargo/bin/cross-util
           key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ needs.build-cross.outputs.cross-revision }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+
       - name: 'Build and assemble ${{ matrix.binary }} ${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}'
         run: |
           set -e
 
-          # Build configuration
-          TARGET="${{ matrix.platform.arch }}-unknown-linux-${{ matrix.platform.libc }}"
-          rustup target add "$TARGET"
+          TARGET_ARCH="${{ matrix.platform.arch }}"
+          TARGET_LIBC="${{ matrix.platform.libc }}"
 
-          ${{ matrix.platform.static == true && 'export RUSTFLAGS="-Ctarget-feature=+crt-static"' || '' }}
+          ${{ matrix.platform.static == true && 'export CARGO_BUILD_STATIC_CRT=1' || '' }}
 
-          hack/build/cargo.sh --release --target "$TARGET"
+          hack/build/cargo.sh build --release
 
           # Platform name
           PLATFORM="${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}"
