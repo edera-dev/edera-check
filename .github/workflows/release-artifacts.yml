@@ -131,7 +131,7 @@ jobs:
 
       - name: Build cross-rs
         id: build-cross
-        uses: ./.github/actions/build-cross
+        uses: ./.github/actions/build-cross-rs
 
   upload-artifact:
     if: ${{ github.repository_owner == 'edera-dev' && (github.event_name == 'release' || github.event.pull_request.head.repo.full_name == github.repository) }}

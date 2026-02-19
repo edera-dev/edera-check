@@ -28,7 +28,7 @@ jobs:
 
       - name: Build cross-rs
         id: build-cross
-        uses: ./.github/actions/build-cross
+        uses: ./.github/actions/build-cross-rs
 
   rustfmt:
     name: rustfmt
