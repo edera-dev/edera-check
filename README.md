@@ -4,7 +4,35 @@ A CLI tool to validate your system is ready to install or use Edera, and generat
 
 ---
 
+## Installation
+
 ## Usage
+
+### Install via Cargo
+
+``` bash
+cargo install edera-check
+```
+
+### Run official release via Docker
+
+```bash
+docker run \
+  --pull always \
+  --pid host \
+  --privileged \
+  gchr.io/edera-dev/edera-check:main preinstall
+```
+
+`podman` et al should also work.
+
+### Run locally from repo root via Docker
+
+Recommended way to run locally and debug/validate, will use local copy of repo.
+
+```bash
+sh hack/debug/local.sh
+```
 
 ### General usage
 
@@ -27,26 +55,6 @@ sudo edera-check postinstall
 ```
 
 Run this on a system that has been booted into an Edera installation to validate it is functional and ready to use.
-
-### Run official release via Docker
-
-```bash
-docker run \
-  --pull always \
-  --pid host \
-  --privileged \
-  gchr.io/edera-dev/edera-check:main preinstall
-```
-
-`podman` et al should also work.
-
-### Run locally from repo root via Docker
-
-Recommended way to run locally and debug/validate, will use local copy of repo.
-
-```bash
-sh hack/debug/local.sh
-```
 
 ---
 
