@@ -71,6 +71,14 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Restore cross-rs binaries
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cargo/bin/cross
+            ~/.cargo/bin/cross-util
+          key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ inputs.cross-revision }}
+
       - name: cargo build
         run: hack/build/cargo.sh build --target "$TARGET"
 
