@@ -16,12 +16,7 @@ use crate::helpers::{
 };
 
 use anyhow::{anyhow, bail};
-use std::{
-    collections::HashSet,
-    env, fs,
-    path::{Path, PathBuf},
-    process,
-};
+use std::{collections::HashSet, env, path::PathBuf, process};
 
 pub async fn do_postinstall(
     record_hostinfo: bool,
