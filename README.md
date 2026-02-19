@@ -6,24 +6,32 @@ A CLI tool to validate your system is ready to install or use Edera, and generat
 
 ## Installation
 
-### Install via Cargo
-
-``` bash
-cargo install edera-check
-sudo edera-check --help
-```
-
-### Run official release via Docker
+### Run official release via signed Docker image (recommended, Docker must be installed)
 
 ```bash
 docker run \
   --pull always \
   --pid host \
   --privileged \
-  gchr.io/edera-dev/edera-check:main preinstall
+  gchr.io/edera-dev/edera-check:stable preinstall
 ```
 
 `podman` et al should also work.
+
+### Install static binary via `curl`
+
+``` bash
+curl -sL $(curl -s https://api.github.com/repos/edera-dev/edera-check/releases/latest | grep -oP '"browser_download_url": "\K.*linux-x86_64-musl[^"]*') -o edera-check
+chmod +x edera-check
+sudo ./edera-check
+```
+
+### Install via Cargo
+
+``` bash
+cargo install edera-check
+sudo edera-check --help
+```
 
 ## Usage
 

@@ -82,7 +82,12 @@ impl IOMMUChecks {
     }
 
     pub async fn run_all(&self) -> CheckGroupResult {
-        CheckGroupResult::new(NAME)
+        use crate::helpers::CheckResultValue::Skipped;
+        CheckGroupResult {
+            name: NAME.to_string(),
+            result: Skipped("not supported on this arch".into()),
+            results: vec![],
+        }
     }
 }
 
