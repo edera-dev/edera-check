@@ -6,7 +6,7 @@ license = "Apache-2.0"
 description = "CLI to run checks before installing or using Edera"
 homepage = "https://github.com/edera-dev/edera-check"
 repository = "https://github.com/edera-dev/edera-check"
-keywords = ["edera", "preinstall", "postinstall", "cli", "check", "preflight"]
+keywords = ["edera", "preinstall", "postinstall", "cli", "check"]
 exclude = [
         ".github",
         ".release-plz.toml",
