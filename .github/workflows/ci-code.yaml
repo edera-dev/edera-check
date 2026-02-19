@@ -80,7 +80,7 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ inputs.cross-revision }}
 
       - name: cargo build
-        run: hack/build/cargo.sh build --target "$TARGET"
+        run: hack/build/cargo.sh build
 
   clippy:
     runs-on: ubuntu-latest
