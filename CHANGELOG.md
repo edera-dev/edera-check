@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5](https://github.com/edera-dev/edera-check/compare/v0.2.4...v0.2.5) - 2026-02-19
+
+### Other
+
+- Fixup readme and native runner CI ([#41](https://github.com/edera-dev/edera-check/pull/41))
+
 ## [0.2.4](https://github.com/edera-dev/edera-check/compare/v0.2.3...v0.2.4) - 2026-02-19
 
 ### Other
