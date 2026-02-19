@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/edera-dev/edera-check/compare/v0.2.3...v0.2.4) - 2026-02-19
+
+### Other
+
+- Attempt multiarch ([#37](https://github.com/edera-dev/edera-check/pull/37))
+- Fixup readme for CURL install, fix arm build ([#35](https://github.com/edera-dev/edera-check/pull/35))
+
 ## [0.2.3](https://github.com/edera-dev/edera-check/compare/v0.2.2...v0.2.3) - 2026-02-19
 
 ### Other
