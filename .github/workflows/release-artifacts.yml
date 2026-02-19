@@ -112,61 +112,26 @@ jobs:
         TAGS: '${{ steps.meta.outputs.tags }}'
         DIGEST: '${{ steps.push.outputs.digest }}'
 
-  # Release builds are built with `musl` targets.
-  # Since we don't use a `musl` runner and distro-level "musl"-y shims
-  # tend to be very incomplete, we build inside our own published `cross-rs`
-  # `musl` OCI image contexts as defined by `Cross.toml` in the repo root.
   build-cross:
     name: Build cross-rs binaries
-    strategy:
-      matrix:
-        platform:
-          - { on: ubuntu-latest }
-          - { on: ubuntu-24.04-arm }
-    runs-on: '${{ matrix.platform.on }}'
+    runs-on: ubuntu-latest
     outputs:
-      cross-revision: ${{ steps.cross-version.outputs.revision }}
+      cross-revision: ${{ steps.build-cross.outputs.revision }}
     steps:
-    - name: harden runner
-      uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
-      with:
-        egress-policy: audit
-    - name: 'Checkout repository'
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.2.0
-      with:
-        submodules: recursive
-        persist-credentials: false
-    - name: Get cross-rs revision
-      id: cross-version
-      run: |
-        set -euo pipefail
-        CROSS_RS_REV=$(grep "CROSS_RS_REV=" ./hack/build/install-cross-rs.sh | cut -d'"' -f2)
-        if [ -z "${CROSS_RS_REV}" ]; then
-          echo "Error: Failed to extract CROSS_RS_REV from install-cross-rs.sh"
-          exit 1
-        fi
-        echo "Extracted cross-rs revision: ${CROSS_RS_REV}"
-        echo "revision=${CROSS_RS_REV}" >> $GITHUB_OUTPUT
-    - name: Restore cross-rs binaries from cache
-      id: cache-cross
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-      with:
-        path: |
-          ~/.cargo/bin/cross
-          ~/.cargo/bin/cross-util
-        key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ steps.cross-version.outputs.revision }}
-    - name: Build cross-rs binaries
-      if: steps.cache-cross.outputs.cache-hit != 'true'
-      run: |
-        ./hack/build/install-cross-rs.sh
-    - name: Save cross-rs binaries to cache
-      if: steps.cache-cross.outputs.cache-hit != 'true'
-      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-      with:
-        path: |
-          ~/.cargo/bin/cross
-          ~/.cargo/bin/cross-util
-        key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ steps.cross-version.outputs.revision }}
+      - name: Harden runner
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@6b42224f41ee5dfe5395e27c8b2746f1f9955030 # v4.2.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Build cross-rs
+        id: build-cross
+        uses: ./.github/actions/build-cross-rs
 
   upload-artifact:
     if: ${{ github.repository_owner == 'edera-dev' && (github.event_name == 'release' || github.event.pull_request.head.repo.full_name == github.repository) }}
@@ -179,7 +144,7 @@ jobs:
       matrix:
         platform:
           - { os: linux, arch: x86_64, libc: musl, static: true, on: ubuntu-latest }
-          - { os: linux, arch: aarch64, libc: musl, static: true, on: ubuntu-24.04-arm }
+          - { os: linux, arch: aarch64, libc: musl, static: true, on: ubuntu-latest }
         binary:
           - edera-check
     runs-on: '${{ matrix.platform.on }}'
@@ -201,7 +166,7 @@ jobs:
           path: |
             ~/.cargo/bin/cross
             ~/.cargo/bin/cross-util
-          key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ inputs.cross-revision }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ needs.build-cross.outputs.cross-revision }}
 
       - name: 'Build and assemble ${{ matrix.binary }} ${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}'
         run: |

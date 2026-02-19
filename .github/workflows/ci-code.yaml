@@ -28,15 +28,16 @@ jobs:
         run: cargo fmt --all -- --check
 
   full-build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        arch:
-        - x86_64
+        platform:
+        - { arch: x86_64, on: ubuntu-latest }
+        - { arch: aarch64, on: ubuntu-24.04-arm }
+    runs-on: "${{ matrix.platform.on }}"
     env:
-      TARGET_ARCH: "${{ matrix.arch }}"
-    name: 'Full build linux-${{ matrix.arch }}'
+      TARGET_ARCH: "${{ matrix.platform.arch }}"
+    name: 'Full build linux-${{ matrix.platform.arch }}'
     steps:
       - name: harden runner
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
