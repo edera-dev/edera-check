@@ -14,10 +14,6 @@ on:
         description: 'Commit/branch/tag'
         default: ''
 
-  # Nightly build from HEAD
-  schedule:
-  - cron: "0 9 * * *"
-
   # Official stable versioned release
   release:
     types:
