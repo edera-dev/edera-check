@@ -166,7 +166,7 @@ jobs:
           path: |
             ~/.cargo/bin/cross
             ~/.cargo/bin/cross-util
-          key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ inputs.cross-revision }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cross-rs-${{ needs.build-cross.outputs.cross-revision }}
 
       - name: 'Build and assemble ${{ matrix.binary }} ${{ matrix.platform.os }}-${{ matrix.platform.arch }}-${{ matrix.platform.libc }}'
         run: |
