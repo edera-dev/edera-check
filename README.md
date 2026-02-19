@@ -108,7 +108,7 @@ for a list of available configuration options and usage tweaks.
 * [src/checkers](src/checkers) - All checkers that validate and actively interrogate various aspects of the host machine go here.
 * [src/helpers](src/helpers) - Shared bits.
 
-By default, everything runs inside the container, and any system tools or binaries or other bits needed by the checkers can be installed or baked inside the container. For checks that need to jump out and touch the host filesystem or state, we use the [src/helpers/host_executor.rs](src/helpers/host_executor.rs).
+By default, everything runs inside the container, and any system tools or binaries or other bits needed by the checkers can be installed or baked inside the container. For checks that need to jump out and touch the host filesystem or state, we use container namespace escape: [src/helpers/host_executor.rs](src/helpers/host_executor.rs).
 
 ### Run locally from repo root via Docker
 
