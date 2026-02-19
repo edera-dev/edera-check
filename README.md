@@ -1,5 +1,7 @@
 # edera-check CLI
 
+![Crates.io Version](https://img.shields.io/crates/v/edera-check)
+
 A CLI tool to validate your system is ready to install or use Edera, and generate local readiness reports.
 
 ---
