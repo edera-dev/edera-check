@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6](https://github.com/edera-dev/edera-check/compare/v0.2.5...v0.2.6) - 2026-02-20
+
+### Other
+
+- Fix typo in README ([#47](https://github.com/edera-dev/edera-check/pull/47))
+- Actually wrap the badge in a link ([#45](https://github.com/edera-dev/edera-check/pull/45))
+- Cargo badge ([#43](https://github.com/edera-dev/edera-check/pull/43))
+
 ## [0.2.5](https://github.com/edera-dev/edera-check/compare/v0.2.4...v0.2.5) - 2026-02-19
 
 ### Other
