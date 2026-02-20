@@ -15,7 +15,7 @@ docker run \
   --pull always \
   --pid host \
   --privileged \
-  gchr.io/edera-dev/edera-check:stable preinstall
+  ghcr.io/edera-dev/edera-check:stable preinstall
 ```
 
 `podman` et al should also work.
