@@ -1,4 +1,4 @@
-use crate::checkers::preinstall::{
+use edera_check::checkers::preinstall::{
     byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, numa::NUMAChecks,
     pvh::PVHChecks, system::SystemChecks,
 };
@@ -7,18 +7,19 @@ use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_
 use anyhow::Result;
 use console::style;
 
-use crate::helpers::{
+use edera_check::helpers::{
     CheckGroup, CheckGroupCategory,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
 
-use crate::recorders::preinstall::system::SystemRecorder as prerecorder;
+use edera_check::recorders::preinstall::system::SystemRecorder as prerecorder;
 
 use anyhow::{anyhow, bail};
 use std::{collections::HashSet, env, path::PathBuf, process};
 
 pub async fn do_preinstall(
+    list_only: bool,
     byo_kernel: bool,
     record_hostinfo: bool,
     only_checks: Vec<String>,
@@ -30,6 +31,57 @@ pub async fn do_preinstall(
     // If we are in a regular old `sudo`'d binary running naked on the host,
     // this is effectively a silent no-op.
     let host_executor = HostNamespaceExecutor::new();
+
+    let mut groups: Vec<Box<dyn CheckGroup>> = vec![
+        Box::new(SystemChecks::new(host_executor.clone())),
+        Box::new(PVHChecks::new(host_executor.clone())),
+        Box::new(KernelChecks::new(host_executor.clone())),
+        Box::new(IOMMUChecks::new(host_executor.clone())),
+        Box::new(NUMAChecks::new(host_executor.clone())),
+    ];
+
+    if byo_kernel {
+        groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));
+    }
+
+    if record_hostinfo {
+        groups.push(Box::new(prerecorder::new(host_executor.clone())));
+    }
+
+    if list_only {
+        let id_w = groups
+            .iter()
+            .map(|g| g.id().len())
+            .max()
+            .unwrap_or(0)
+            .max("ID".len());
+        let cat_w = groups
+            .iter()
+            .map(|g| g.category().to_string().len())
+            .max()
+            .unwrap_or(0)
+            .max("Category".len());
+        println!(
+            "Available preinstall check groups (selectively run checks with '--only-checks <ID>'):\n"
+        );
+        println!("  {:<id_w$}  {:<cat_w$}  Description", "ID", "Category");
+        println!(
+            "  {}",
+            "-".repeat(id_w + 2 + cat_w + 2 + "Description".len())
+        );
+        for group in &groups {
+            let cat = group.category().to_string();
+            println!(
+                "  {}{}  {}{}  {}",
+                style(group.id()).cyan().bold(),
+                " ".repeat(id_w - group.id().len()),
+                style(&cat).white().bold(),
+                " ".repeat(cat_w - cat.len()),
+                group.description()
+            );
+        }
+        return Ok(());
+    }
 
     // See if we are already booted under Edera. If so, error out and suggest `postinstall`
     // as the command to run.
@@ -49,24 +101,11 @@ pub async fn do_preinstall(
         }
     };
 
-    let mut groups: Vec<Box<dyn CheckGroup>> = vec![
-        Box::new(SystemChecks::new(host_executor.clone())),
-        Box::new(PVHChecks::new(host_executor.clone())),
-        Box::new(KernelChecks::new(host_executor.clone())),
-        Box::new(IOMMUChecks::new(host_executor.clone())),
-        Box::new(NUMAChecks::new(host_executor.clone())),
-    ];
-
     if record_hostinfo {
         println!(
             "Collecting information about the current host as part of locally-generated preinstall report."
         );
         println!("The information collected will remain on this host.");
-        groups.push(Box::new(prerecorder::new(host_executor.clone())));
-    }
-
-    if byo_kernel {
-        groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));
     }
 
     // If only-checks is specified, only include checks that match the provided ID.

@@ -43,7 +43,13 @@ impl GuestTypeChecks {
         }
     }
 
-    async fn check_guest_support(&self) -> CheckResult {
+    /// Checks if the Xen hypervisor reports PVH as the active guest type.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cat /sys/hypervisor/guest_type  # must read "PVH" for PVH support, otherwise only PV supported.
+    /// ```
+    pub async fn check_guest_support(&self) -> CheckResult {
         let name = String::from("Guest Type Support");
         match self
             .host_executor

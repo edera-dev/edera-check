@@ -69,7 +69,24 @@ impl PVHChecks {
             .await;
     }
 
-    async fn check_virtualization(&self) -> CheckResult {
+    /// Checks that hardware virtualization (Intel VT-x or AMD-V) is available and not
+    /// disabled in firmware. Reads the CPU vendor from `/proc/cpuinfo`, then inspects
+    /// MSR registers to determine BIOS enablement state.
+    ///
+    /// Manual equivalent (Intel — reads IA32_FEATURE_CONTROL MSR 0x3a):
+    /// ```sh
+    /// modprobe msr
+    /// grep -m1 '^flags' /proc/cpuinfo | grep -qw vmx && echo "vmx present"
+    /// rdmsr 0x3a  # bit 0 = lock, bit 2 = vmx_outside_smx; both must be 1
+    /// ```
+    ///
+    /// Manual equivalent (AMD — reads VM_CR MSR 0xC0010114):
+    /// ```sh
+    /// modprobe msr
+    /// grep -m1 '^flags' /proc/cpuinfo | grep -qw svm && echo "svm present"
+    /// rdmsr 0xC0010114  # bit 4 = SVMDIS; must be 0
+    /// ```
+    pub async fn check_virtualization(&self) -> CheckResult {
         let name = String::from("PVH Support");
 
         self.ensure_msr_modprobe().await;

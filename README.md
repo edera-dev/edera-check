@@ -110,7 +110,15 @@ edera-check preinstall --help
 edera-check postinstall --help
 ```
 
-for a list of available configuration options and usage tweaks.
+for a list of available configuration options, available check groups, and usage tweaks.
+
+## Documentation
+
+Where possible, each check or recorder has a `rustdoc` documentation comment
+showing how to manually perform the equivalent check locally on your system,
+if for some reason you are curious about how to run a specific check without using `edera-check` to do it.
+
+You can see the example snippets for each documented check by [reading the crate docs](https://crates.io/crates/edera-check).
 
 ## Dev Notes
 

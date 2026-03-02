@@ -134,37 +134,80 @@ impl SystemRecorder {
             .unwrap_or_else(|_| panic!("could not record {}", file.display()))
     }
 
-    async fn record_lspci(&self) -> CheckResult {
+    /// Records verbose PCI device listing.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// lspci -vvv
+    /// ```
+    pub async fn record_lspci(&self) -> CheckResult {
         self.run_tool("lspci -vvv").await
     }
 
-    async fn record_dmidecode(&self) -> CheckResult {
+    /// Records DMI/SMBIOS hardware information (BIOS, board, chassis, CPU, memory).
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// dmidecode
+    /// ```
+    pub async fn record_dmidecode(&self) -> CheckResult {
         self.run_tool("dmidecode").await
     }
 
-    async fn record_hv_console(&self) -> CheckResult {
+    /// Records the Xen hypervisor console log via the protect-ctl tool.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// protect-ctl host hv-console
+    /// ```
+    pub async fn record_hv_console(&self) -> CheckResult {
         self.run_tool("protect-ctl host hv-console").await
     }
 
-    async fn record_cpuinfo(&self) -> CheckResult {
+    /// Records CPU hardware details and feature flags.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cat /proc/cpuinfo
+    /// ```
+    pub async fn record_cpuinfo(&self) -> CheckResult {
         self.record_file(PathBuf::from("/proc/cpuinfo").as_ref())
             .await
             .expect("/proc/cpuinfo not found")
     }
 
-    async fn record_cmdline(&self) -> CheckResult {
+    /// Records the kernel command line used to boot the running kernel.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cat /proc/cmdline
+    /// ```
+    pub async fn record_cmdline(&self) -> CheckResult {
         self.record_file(PathBuf::from("/proc/cmdline").as_ref())
             .await
             .expect("/proc/cmdline not found")
     }
 
-    async fn record_xen_capabilities(&self) -> CheckResult {
+    /// Records the Xen hypervisor capability string.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cat /sys/hypervisor/properties/capabilities
+    /// ```
+    pub async fn record_xen_capabilities(&self) -> CheckResult {
         self.record_file(PathBuf::from("/sys/hypervisor/properties/capabilities").as_ref())
             .await
             .expect("/sys/hypervisor/properties/capabilities not found")
     }
 
-    async fn record_grub_cfg(&self) -> CheckResult {
+    /// Records the GRUB bootloader configuration. Checks `/boot/grub2/grub.cfg` first,
+    /// falling back to `/boot/grub/grub.cfg`.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cat /boot/grub2/grub.cfg || cat /boot/grub/grub.cfg
+    /// ```
+    pub async fn record_grub_cfg(&self) -> CheckResult {
         // prefer grub2 path, since if both are present for any reason,
         // that is likely to be the "correct" one.
         let files = ["/boot/grub2/grub.cfg", "/boot/grub/grub.cfg"];
@@ -180,7 +223,14 @@ impl SystemRecorder {
         )
     }
 
-    async fn record_kernel_cfg(&self) -> CheckResult {
+    /// Records the kernel build configuration. Checks `/proc/config.gz` first (decompressing
+    /// if needed), falling back to `/boot/config-$(uname -r)`.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// zcat /proc/config.gz || cat /boot/config-$(uname -r)
+    /// ```
+    pub async fn record_kernel_cfg(&self) -> CheckResult {
         let name = "Record kernel config";
         // Get kernel version
         //
@@ -201,7 +251,13 @@ impl SystemRecorder {
         )
     }
 
-    async fn record_loaded_modules(&self) -> CheckResult {
+    /// Records the list of currently loaded kernel modules.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cut -d' ' -f1 /proc/modules
+    /// ```
+    pub async fn record_loaded_modules(&self) -> CheckResult {
         let name = "Record current host kernel loaded modules";
         match self
             .host_executor

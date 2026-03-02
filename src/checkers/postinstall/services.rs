@@ -50,7 +50,14 @@ impl ServiceChecks {
         }
     }
 
-    async fn check_daemon(&self) -> CheckResult {
+    /// Checks that the `protect-daemon` service is active.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// systemctl is-active protect-daemon
+    /// # or on OpenRC: rc-service protect-daemon status
+    /// ```
+    pub async fn check_daemon(&self) -> CheckResult {
         let name = "Protect daemon status";
         let sname = "protect-daemon";
         let init = svchelpers::detect_init_system(&self.host_executor).await;
@@ -66,7 +73,14 @@ impl ServiceChecks {
         }
     }
 
-    async fn check_storage(&self) -> CheckResult {
+    /// Checks that the `protect-storage` service is active.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// systemctl is-active protect-storage
+    /// # or on OpenRC: rc-service protect-storage status
+    /// ```
+    pub async fn check_storage(&self) -> CheckResult {
         let name = "Protect storage daemon status";
         let sname = "protect-storage";
         let init = svchelpers::detect_init_system(&self.host_executor).await;
@@ -82,7 +96,14 @@ impl ServiceChecks {
         }
     }
 
-    async fn check_network(&self) -> CheckResult {
+    /// Checks that the `protect-network` service is active.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// systemctl is-active protect-network
+    /// # or on OpenRC: rc-service protect-network status
+    /// ```
+    pub async fn check_network(&self) -> CheckResult {
         let name = "Protect network daemon status";
         let sname = "protect-network";
         let init = svchelpers::detect_init_system(&self.host_executor).await;

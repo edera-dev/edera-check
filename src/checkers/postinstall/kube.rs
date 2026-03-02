@@ -45,7 +45,14 @@ impl KubeChecks {
         }
     }
 
-    async fn check_cri(&self) -> CheckResult {
+    /// Checks that the `protect-cri` container runtime interface service is active.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// systemctl is-active protect-cri
+    /// # or on OpenRC: rc-service protect-cri status
+    /// ```
+    pub async fn check_cri(&self) -> CheckResult {
         let name = "Protect CRI daemon status";
         let sname = "protect-cri";
         let init = svchelpers::detect_init_system(&self.host_executor).await;
@@ -61,7 +68,14 @@ impl KubeChecks {
         }
     }
 
-    async fn check_kubelet(&self) -> CheckResult {
+    /// Checks that the `kubelet` service is active.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// systemctl is-active kubelet
+    /// # or on OpenRC: rc-service kubelet status
+    /// ```
+    pub async fn check_kubelet(&self) -> CheckResult {
         let name = "kubelet status";
         let sname = "kubelet";
         let init = svchelpers::detect_init_system(&self.host_executor).await;

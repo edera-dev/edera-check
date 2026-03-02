@@ -62,7 +62,13 @@ impl PostinstallKernelChecks {
         }
     }
 
-    async fn version_is_good(&self) -> CheckResult {
+    /// Checks that the running kernel is at least version 5.15.0.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// uname -r  # must be >= 5.15.0
+    /// ```
+    pub async fn version_is_good(&self) -> CheckResult {
         let name = String::from("Host Kernel Version Is Good");
         let floor = kernel::Version::new(KVER_FLOOR_MAJOR, KVER_FLOOR_MINOR, KVER_FLOOR_PATCH);
 
@@ -78,7 +84,20 @@ impl PostinstallKernelChecks {
         }
     }
 
-    async fn has_modules(&self) -> CheckResult {
+    /// Checks that all required Xen and networking modules are available as built-in,
+    /// currently loaded, or loadable (present in `modules.dep`) for the running kernel.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// KV=$(uname -r)
+    /// for mod in nf_tables xen_evtchn xen-privcmd xen-netback xen-pciback xen-blkback xen-gntdev xen-gntalloc; do
+    ///   grep -q "$mod" /lib/modules/$KV/modules.builtin \
+    ///     || grep -q "^${mod} " /proc/modules \
+    ///     || grep -q "$mod" /lib/modules/$KV/modules.dep \
+    ///     && echo "$mod: OK" || echo "$mod: MISSING"
+    /// done
+    /// ```
+    pub async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
 
         let required_modules: Vec<String> =

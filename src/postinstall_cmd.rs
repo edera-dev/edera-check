@@ -1,15 +1,15 @@
-use crate::checkers::postinstall::{
+use edera_check::checkers::postinstall::{
     guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, kube::KubeChecks,
     services::ServiceChecks,
 };
 
-use crate::recorders::postinstall::system::SystemRecorder as postrecorder;
 use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
+use edera_check::recorders::postinstall::system::SystemRecorder as postrecorder;
 
 use anyhow::Result;
 use console::style;
 
-use crate::helpers::{
+use edera_check::helpers::{
     CheckGroup, CheckGroupCategory,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
@@ -19,6 +19,7 @@ use anyhow::{anyhow, bail};
 use std::{collections::HashSet, env, path::PathBuf, process};
 
 pub async fn do_postinstall(
+    list_only: bool,
     record_hostinfo: bool,
     only_checks: Vec<String>,
     report_dir: Option<String>,
@@ -29,6 +30,52 @@ pub async fn do_postinstall(
     // If we are in a regular old `sudo`'d binary running naked on the host,
     // this is effectively a silent no-op.
     let host_executor = HostNamespaceExecutor::new();
+
+    let mut groups: Vec<Box<dyn CheckGroup>> = vec![
+        Box::new(GuestTypeChecks::new(host_executor.clone())),
+        Box::new(PostinstallKernelChecks::new(host_executor.clone())),
+        Box::new(ServiceChecks::new(host_executor.clone())),
+        Box::new(KubeChecks::new(host_executor.clone())),
+    ];
+
+    if record_hostinfo {
+        groups.push(Box::new(postrecorder::new(host_executor.clone())));
+    }
+
+    if list_only {
+        let id_w = groups
+            .iter()
+            .map(|g| g.id().len())
+            .max()
+            .unwrap_or(0)
+            .max("ID".len());
+        let cat_w = groups
+            .iter()
+            .map(|g| g.category().to_string().len())
+            .max()
+            .unwrap_or(0)
+            .max("Category".len());
+        println!(
+            "Available postinstall check groups (selectively run checks with '--only-checks <ID>'):\n"
+        );
+        println!("  {:<id_w$}  {:<cat_w$}  Description", "ID", "Category");
+        println!(
+            "  {}",
+            "-".repeat(id_w + 2 + cat_w + 2 + "Description".len())
+        );
+        for group in &groups {
+            let cat = group.category().to_string();
+            println!(
+                "  {}{}  {}{}  {}",
+                style(group.id()).cyan().bold(),
+                " ".repeat(id_w - group.id().len()),
+                style(&cat).white().bold(),
+                " ".repeat(cat_w - cat.len()),
+                group.description()
+            );
+        }
+        return Ok(());
+    }
 
     // See if we are booted under Edera. If not, error out and suggest `preinstall`
     // as the command to run.
@@ -48,19 +95,11 @@ pub async fn do_postinstall(
         }
     };
 
-    let mut groups: Vec<Box<dyn CheckGroup>> = vec![
-        Box::new(GuestTypeChecks::new(host_executor.clone())),
-        Box::new(PostinstallKernelChecks::new(host_executor.clone())),
-        Box::new(ServiceChecks::new(host_executor.clone())),
-        Box::new(KubeChecks::new(host_executor.clone())),
-    ];
-
     if record_hostinfo {
         println!(
             "Collecting information about the current host as part of locally-generated postinstall report."
         );
         println!("The information collected will remain on this host.");
-        groups.push(Box::new(postrecorder::new(host_executor.clone())));
     }
 
     // If only-checks is specified, only include checks that match the provided ID.
