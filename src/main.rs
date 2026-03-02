@@ -1,12 +1,9 @@
-mod checkers;
-mod helpers;
 mod postinstall_cmd;
 mod preinstall_cmd;
-mod recorders;
 
 use clap::{Args, Parser, Subcommand};
 use console::{Emoji, style};
-use helpers::{CheckGroup, CheckGroupResult, host_executor::HostNamespaceExecutor};
+use edera_check::helpers::{CheckGroup, CheckGroupResult, host_executor::HostNamespaceExecutor};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -21,7 +18,9 @@ use std::{
 };
 use tokio::task::JoinHandle;
 
+
 static SPARKLE: Emoji = Emoji("✨", "[*]");
+
 
 #[derive(Parser)]
 #[command(name = "edera-check")]
@@ -31,17 +30,20 @@ struct Cli {
     command: Commands,
 }
 
+
 #[derive(Subcommand)]
 enum PreinstallAction {
     /// List available check groups and their IDs.
     ListChecks,
 }
 
+
 #[derive(Subcommand)]
 enum PostinstallAction {
     /// List available check groups and their IDs.
     ListChecks,
 }
+
 
 #[derive(Args)]
 struct PreinstallArgs {
@@ -66,6 +68,7 @@ struct PreinstallArgs {
     report_dir: Option<String>,
 }
 
+
 #[derive(Args)]
 struct PostinstallArgs {
     #[command(subcommand)]
@@ -84,6 +87,7 @@ struct PostinstallArgs {
     #[arg(short = 'd', long)]
     report_dir: Option<String>,
 }
+
 
 #[derive(Subcommand)]
 enum Commands {
@@ -126,8 +130,7 @@ async fn main() -> Result<()> {
     }
 }
 
-/// This writes the gzip to the container namespace /tmp, and then copies it out to
-/// the same path on the host at the end.
+
 async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecutor) -> Result<()> {
     let mut archive_path = base_path.clone();
     archive_path.set_extension("tar.gz");

@@ -45,7 +45,15 @@ impl IOMMUChecks {
         }
     }
 
-    async fn check_iommu(&self) -> CheckResult {
+    /// Checks for an IOMMU by looking for the Intel VT-d (DMAR) or AMD-Vi (IVRS) ACPI tables.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// ls /sys/firmware/acpi/tables/DMAR 2>/dev/null && echo "Intel VT-d" \
+    ///   || ls /sys/firmware/acpi/tables/IVRS 2>/dev/null && echo "AMD-Vi" \
+    ///   || echo "no IOMMU"
+    /// ```
+    pub async fn check_iommu(&self) -> CheckResult {
         let name = String::from("IOMMU Support");
 
         match self

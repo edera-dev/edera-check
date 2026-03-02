@@ -44,7 +44,14 @@ impl NUMAChecks {
         }
     }
 
-    async fn check_numa(&self) -> CheckResult {
+    /// Checks that the system has at most one NUMA node.
+    /// Multiple NUMA nodes are not currently supported.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// ls /sys/devices/system/node | grep -c '^node[0-9]'  # must be <= 1
+    /// ```
+    pub async fn check_numa(&self) -> CheckResult {
         let name = String::from("IOMMU Support");
 
         match self

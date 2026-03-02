@@ -46,7 +46,14 @@ impl KernelChecks {
         }
     }
 
-    async fn has_modules(&self) -> CheckResult {
+    /// Checks that `nf_tables` and `msr` are either built into or loaded by the running kernel.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// grep -E 'nf_tables|msr' /lib/modules/$(uname -r)/modules.builtin
+    /// grep -E '^nf_tables |^msr ' /proc/modules
+    /// ```
+    pub async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
 
         let required_modules: Vec<String> =

@@ -1,15 +1,15 @@
-use crate::checkers::postinstall::{
+use edera_check::checkers::postinstall::{
     guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, kube::KubeChecks,
     services::ServiceChecks,
 };
 
-use crate::recorders::postinstall::system::SystemRecorder as postrecorder;
+use edera_check::recorders::postinstall::system::SystemRecorder as postrecorder;
 use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
 
 use anyhow::Result;
 use console::style;
 
-use crate::helpers::{
+use edera_check::helpers::{
     CheckGroup, CheckGroupCategory,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,

@@ -1,4 +1,4 @@
-use crate::checkers::preinstall::{
+use edera_check::checkers::preinstall::{
     byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, numa::NUMAChecks,
     pvh::PVHChecks, system::SystemChecks,
 };
@@ -7,13 +7,13 @@ use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_
 use anyhow::Result;
 use console::style;
 
-use crate::helpers::{
+use edera_check::helpers::{
     CheckGroup, CheckGroupCategory,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
 
-use crate::recorders::preinstall::system::SystemRecorder as prerecorder;
+use edera_check::recorders::preinstall::system::SystemRecorder as prerecorder;
 
 use anyhow::{anyhow, bail};
 use std::{collections::HashSet, env, path::PathBuf, process};

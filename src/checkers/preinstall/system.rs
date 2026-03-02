@@ -44,7 +44,13 @@ impl SystemChecks {
         }
     }
 
-    async fn enough_memory(&self) -> CheckResult {
+    /// Checks that total system RAM is at least 4 GB.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// awk '/MemTotal/ { if ($2 >= 4194304) print "OK"; else print "FAIL" }' /proc/meminfo
+    /// ```
+    pub async fn enough_memory(&self) -> CheckResult {
         let name = String::from("Enough Memory");
 
         let total_mem = match self
@@ -73,7 +79,13 @@ impl SystemChecks {
         CheckResult::new(&name, result)
     }
 
-    async fn enough_disk(&self) -> CheckResult {
+    /// Checks that at least one mounted filesystem has 20 GB or more of available space.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// df -BG | awk 'NR>1 { gsub(/G/,""); if (int($4) >= 20) found=1 } END { exit !found }'
+    /// ```
+    pub async fn enough_disk(&self) -> CheckResult {
         let name = String::from("Enough Disk");
 
         let result = match self
