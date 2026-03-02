@@ -1,3 +1,4 @@
 pub mod checkers;
-pub(crate) mod helpers;
+#[doc(hidden)]
+pub mod helpers;
 pub mod recorders;

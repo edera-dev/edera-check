@@ -3,8 +3,8 @@ use edera_check::checkers::postinstall::{
     services::ServiceChecks,
 };
 
-use edera_check::recorders::postinstall::system::SystemRecorder as postrecorder;
 use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
+use edera_check::recorders::postinstall::system::SystemRecorder as postrecorder;
 
 use anyhow::Result;
 use console::style;

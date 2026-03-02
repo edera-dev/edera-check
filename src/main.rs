@@ -18,9 +18,7 @@ use std::{
 };
 use tokio::task::JoinHandle;
 
-
 static SPARKLE: Emoji = Emoji("✨", "[*]");
-
 
 #[derive(Parser)]
 #[command(name = "edera-check")]
@@ -30,20 +28,17 @@ struct Cli {
     command: Commands,
 }
 
-
 #[derive(Subcommand)]
 enum PreinstallAction {
     /// List available check groups and their IDs.
     ListChecks,
 }
 
-
 #[derive(Subcommand)]
 enum PostinstallAction {
     /// List available check groups and their IDs.
     ListChecks,
 }
-
 
 #[derive(Args)]
 struct PreinstallArgs {
@@ -68,7 +63,6 @@ struct PreinstallArgs {
     report_dir: Option<String>,
 }
 
-
 #[derive(Args)]
 struct PostinstallArgs {
     #[command(subcommand)]
@@ -87,7 +81,6 @@ struct PostinstallArgs {
     #[arg(short = 'd', long)]
     report_dir: Option<String>,
 }
-
 
 #[derive(Subcommand)]
 enum Commands {
@@ -129,7 +122,6 @@ async fn main() -> Result<()> {
         }
     }
 }
-
 
 async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecutor) -> Result<()> {
     let mut archive_path = base_path.clone();
