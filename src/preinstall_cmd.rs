@@ -49,11 +49,26 @@ pub async fn do_preinstall(
     }
 
     if list_only {
-        let id_w = groups.iter().map(|g| g.id().len()).max().unwrap_or(0).max("ID".len());
-        let cat_w = groups.iter().map(|g| g.category().to_string().len()).max().unwrap_or(0).max("Category".len());
-        println!("Available preinstall check groups (selectively run checks with '--only-checks <ID>'):\n");
+        let id_w = groups
+            .iter()
+            .map(|g| g.id().len())
+            .max()
+            .unwrap_or(0)
+            .max("ID".len());
+        let cat_w = groups
+            .iter()
+            .map(|g| g.category().to_string().len())
+            .max()
+            .unwrap_or(0)
+            .max("Category".len());
+        println!(
+            "Available preinstall check groups (selectively run checks with '--only-checks <ID>'):\n"
+        );
         println!("  {:<id_w$}  {:<cat_w$}  Description", "ID", "Category");
-        println!("  {}", "-".repeat(id_w + 2 + cat_w + 2 + "Description".len()));
+        println!(
+            "  {}",
+            "-".repeat(id_w + 2 + cat_w + 2 + "Description".len())
+        );
         for group in &groups {
             let cat = group.category().to_string();
             println!(
