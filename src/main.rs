@@ -4,7 +4,7 @@ mod postinstall_cmd;
 mod preinstall_cmd;
 mod recorders;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use console::{Emoji, style};
 use helpers::{CheckGroup, CheckGroupResult, host_executor::HostNamespaceExecutor};
 
@@ -32,41 +32,65 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+enum PreinstallAction {
+    /// List available check groups and their IDs.
+    ListChecks,
+}
+
+#[derive(Subcommand)]
+enum PostinstallAction {
+    /// List available check groups and their IDs.
+    ListChecks,
+}
+
+#[derive(Args)]
+struct PreinstallArgs {
+    #[command(subcommand)]
+    action: Option<PreinstallAction>,
+
+    /// Validate running kernel for bring-your-own kernel support (default false)
+    #[arg(short, long, default_value_t = false)]
+    byo_kernel: bool,
+
+    /// Collect information and configuration snapshot of current system (default true)
+    #[arg(short, long, default_value_t = true)]
+    record_hostinfo: bool,
+
+    /// Run only selected checks, instead of default behavior of running all.
+    /// Will override all other check enablement flags.
+    #[arg(short, long, value_delimiter = ',')]
+    only_checks: Vec<String>,
+
+    /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
+    #[arg(short = 'd', long)]
+    report_dir: Option<String>,
+}
+
+#[derive(Args)]
+struct PostinstallArgs {
+    #[command(subcommand)]
+    action: Option<PostinstallAction>,
+
+    /// Collect information and configuration snapshot of current system (default true)
+    #[arg(short, long, default_value_t = true)]
+    record_hostinfo: bool,
+
+    /// Run only selected checks, instead of default behavior of running all.
+    /// Will override all other check enablement flags.
+    #[arg(short, long, value_delimiter = ',')]
+    only_checks: Vec<String>,
+
+    /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
+    #[arg(short = 'd', long)]
+    report_dir: Option<String>,
+}
+
+#[derive(Subcommand)]
 enum Commands {
     /// Run before installing Edera to validate hardware/host installation readiness.
-    Preinstall {
-        /// Validate running kernel for bring-your-own kernel support (default false)
-        #[arg(short, long, default_value_t = false)]
-        byo_kernel: bool,
-
-        /// Collect information and configuration snapshot of current system (default true)
-        #[arg(short, long, default_value_t = true)]
-        record_hostinfo: bool,
-
-        /// Run only selected checks, instead of default behavior of running all.
-        /// Will override all other check enablement flags.
-        #[arg(short, long, value_delimiter = ',')]
-        only_checks: Vec<String>,
-
-        /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
-        #[arg(short = 'd', long)]
-        report_dir: Option<String>,
-    },
+    Preinstall(PreinstallArgs),
     /// Run after installing Edera to validate workload readiness.
-    Postinstall {
-        /// Collect information and configuration snapshot of current system (default true)
-        #[arg(short, long, default_value_t = true)]
-        record_hostinfo: bool,
-
-        /// Run only selected checks, instead of default behavior of running all.
-        /// Will override all other check enablement flags.
-        #[arg(short, long, value_delimiter = ',')]
-        only_checks: Vec<String>,
-
-        /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
-        #[arg(short = 'd', long)]
-        report_dir: Option<String>,
-    },
+    Postinstall(PostinstallArgs),
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
@@ -80,20 +104,25 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Commands::Preinstall {
-            byo_kernel,
-            record_hostinfo,
-            only_checks,
-            report_dir,
-        } => {
-            preinstall_cmd::do_preinstall(byo_kernel, record_hostinfo, only_checks, report_dir)
-                .await
+        Commands::Preinstall(args) => {
+            preinstall_cmd::do_preinstall(
+                matches!(args.action, Some(PreinstallAction::ListChecks)),
+                args.byo_kernel,
+                args.record_hostinfo,
+                args.only_checks,
+                args.report_dir,
+            )
+            .await
         }
-        Commands::Postinstall {
-            record_hostinfo,
-            only_checks,
-            report_dir,
-        } => postinstall_cmd::do_postinstall(record_hostinfo, only_checks, report_dir).await,
+        Commands::Postinstall(args) => {
+            postinstall_cmd::do_postinstall(
+                matches!(args.action, Some(PostinstallAction::ListChecks)),
+                args.record_hostinfo,
+                args.only_checks,
+                args.report_dir,
+            )
+            .await
+        }
     }
 }
 
