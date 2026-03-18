@@ -23,7 +23,7 @@ impl SystemChecks {
         SystemChecks { host_executor }
     }
     pub async fn run_all(&self) -> CheckGroupResult {
-        let results = join_all([self.enough_memory().boxed(), self.enough_disk().boxed()]).await;
+        let results = join_all([self.enough_memory().boxed(), self.enough_disk().boxed(), self.has_nft_bin().boxed()]).await;
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -41,6 +41,14 @@ impl SystemChecks {
             name: NAME.to_string(),
             result: group_result,
             results,
+        }
+    }
+
+    pub async fn has_nft_bin(&self) -> CheckResult {
+        let name = String::from("'nft' Binary Present");
+        match std::process::Command::new("nft").arg("--version").status().map(|s| s.success()) {
+            Ok(_) => CheckResult::new(&name, Passed),
+            Err(_) => CheckResult::new(&name, Errored("'nft' binary is required but not present, install `nftables`".into()))
         }
     }
 
