@@ -28,5 +28,5 @@ tokio-stream = { version = "0.1", features = ["io-util", "net"] }
 nix = { version= "0.31", features = ["sched", "user"] }
 futures = "0.3"
 async-trait = "0.1"
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 console = "0.16"
