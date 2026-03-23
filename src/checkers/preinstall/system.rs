@@ -27,6 +27,10 @@ impl SystemChecks {
             self.enough_memory().boxed(),
             self.enough_disk().boxed(),
             self.has_nft_bin().boxed(),
+            self.has_package_manager_bin().boxed(),
+            self.has_grub_mkconfig_bin().boxed(),
+            self.has_service_manager_bin().boxed(),
+            self.has_linux_util_bins(&["tar", "grep"]).boxed(),
         ])
         .await;
 
@@ -49,10 +53,14 @@ impl SystemChecks {
         }
     }
 
+    /// Checks that the `nft` binary, typically from the `nftables` package,
+    /// is in PATH. Currently, the installer and `protect-network` rely on this.
     pub async fn has_nft_bin(&self) -> CheckResult {
         let name = String::from("'nft' Binary Present");
         match std::process::Command::new("nft")
             .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .status()
             .map(|s| s.success())
         {
@@ -61,6 +69,113 @@ impl SystemChecks {
                 &name,
                 Errored("'nft' binary is required but not present, install `nftables`".into()),
             ),
+        }
+    }
+
+    /// Checks that the given util-linux/coreutils/etc binaries are present in PATH.
+    /// It is assumed that all of these respond to `--version`.
+    /// On all supported systems this should be a given.
+    /// Currently, the installer relies explicitly on these being present on the host.
+    pub async fn has_linux_util_bins(&self, bins: &[&str]) -> CheckResult {
+        let name = String::from("Basic Linux Utility Binaries Present");
+        let mut missing = Vec::new();
+
+        for bin in bins {
+            let found = std::process::Command::new(bin)
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if !found {
+                missing.push(*bin);
+            }
+        }
+
+        if missing.is_empty() {
+            CheckResult::new(&name, Passed)
+        } else {
+            let msg = format!(
+                "required basic Linux utility binaries not found in PATH: {}",
+                missing.join(", ")
+            );
+            CheckResult::new(&name, Errored(msg))
+        }
+    }
+
+    /// Checks that either `grub-mkconfig` or `grub2-mkconfig` is present in PATH,
+    /// as the installer currently requires one or the other.
+    pub async fn has_grub_mkconfig_bin(&self) -> CheckResult {
+        let name = String::from("'grub-mkconfig' Binary Present");
+        let found = ["grub-mkconfig", "grub2-mkconfig"].iter().any(|bin| {
+            std::process::Command::new(bin)
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        });
+
+        if found {
+            CheckResult::new(&name, Passed)
+        } else {
+            CheckResult::new(
+                &name,
+                Errored("neither 'grub-mkconfig' nor 'grub2-mkconfig' found in PATH".into()),
+            )
+        }
+    }
+
+    /// Checks that either `systemctl` or `rc-update` is present in PATH,
+    /// as the installer requires one or the other to enable services.
+    pub async fn has_service_manager_bin(&self) -> CheckResult {
+        let name = String::from("Service Manager Binary Present");
+        let found = ["systemctl", "rc-update"].iter().any(|bin| {
+            std::process::Command::new(bin)
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        });
+
+        if found {
+            CheckResult::new(&name, Passed)
+        } else {
+            CheckResult::new(
+                &name,
+                Errored("neither 'systemctl' nor 'rc-update' found in PATH".into()),
+            )
+        }
+    }
+
+    /// Checks that at least one supported package manager is present in PATH,
+    /// as the installer requires one to install system packages.
+    pub async fn has_package_manager_bin(&self) -> CheckResult {
+        let name = String::from("Package Manager Binary Present");
+        let found = ["dnf", "yum", "zypper", "apt-get", "apk"]
+            .iter()
+            .any(|bin| {
+                std::process::Command::new(bin)
+                    .arg("--version")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            });
+
+        if found {
+            CheckResult::new(&name, Passed)
+        } else {
+            CheckResult::new(
+                &name,
+                Errored("no supported package manager found in PATH (tried: dnf, yum, zypper, apt-get, apk)".into()),
+            )
         }
     }
 
