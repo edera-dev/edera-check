@@ -78,21 +78,28 @@ impl SystemChecks {
     /// Currently, the installer relies explicitly on these being present on the host.
     pub async fn has_linux_util_bins(&self, bins: &[&str]) -> CheckResult {
         let name = String::from("Basic Linux Utility Binaries Present");
-        let mut missing = Vec::new();
+        let owned_bins: Vec<String> = bins.iter().map(|s| s.to_string()).collect();
 
-        for bin in bins {
-            let found = std::process::Command::new(bin)
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-
-            if !found {
-                missing.push(*bin);
-            }
-        }
+        let missing = self
+            .host_executor
+            .spawn_in_host_ns(async move {
+                let mut missing = Vec::new();
+                for bin in &owned_bins {
+                    let found = std::process::Command::new(bin)
+                        .arg("--version")
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+                    if !found {
+                        missing.push(bin.clone());
+                    }
+                }
+                missing
+            })
+            .await
+            .unwrap_or_default();
 
         if missing.is_empty() {
             CheckResult::new(&name, Passed)
@@ -109,15 +116,21 @@ impl SystemChecks {
     /// as the installer currently requires one or the other.
     pub async fn has_grub_mkconfig_bin(&self) -> CheckResult {
         let name = String::from("'grub-mkconfig' Binary Present");
-        let found = ["grub-mkconfig", "grub2-mkconfig"].iter().any(|bin| {
-            std::process::Command::new(bin)
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false)
-        });
+        let found = self
+            .host_executor
+            .spawn_in_host_ns(async {
+                ["grub-mkconfig", "grub2-mkconfig"].iter().any(|bin| {
+                    std::process::Command::new(bin)
+                        .arg("--version")
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false)
+                })
+            })
+            .await
+            .unwrap_or(false);
 
         if found {
             CheckResult::new(&name, Passed)
@@ -133,15 +146,21 @@ impl SystemChecks {
     /// as the installer requires one or the other to enable services.
     pub async fn has_service_manager_bin(&self) -> CheckResult {
         let name = String::from("Service Manager Binary Present");
-        let found = ["systemctl", "rc-update"].iter().any(|bin| {
-            std::process::Command::new(bin)
-                .arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false)
-        });
+        let found = self
+            .host_executor
+            .spawn_in_host_ns(async {
+                ["systemctl", "rc-update"].iter().any(|bin| {
+                    std::process::Command::new(bin)
+                        .arg("--version")
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false)
+                })
+            })
+            .await
+            .unwrap_or(false);
 
         if found {
             CheckResult::new(&name, Passed)
@@ -157,17 +176,23 @@ impl SystemChecks {
     /// as the installer requires one to install system packages.
     pub async fn has_package_manager_bin(&self) -> CheckResult {
         let name = String::from("Package Manager Binary Present");
-        let found = ["dnf", "yum", "zypper", "apt-get", "apk"]
-            .iter()
-            .any(|bin| {
-                std::process::Command::new(bin)
-                    .arg("--version")
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .status()
-                    .map(|s| s.success())
-                    .unwrap_or(false)
-            });
+        let found = self
+            .host_executor
+            .spawn_in_host_ns(async {
+                ["dnf", "yum", "zypper", "apt-get", "apk"]
+                    .iter()
+                    .any(|bin| {
+                        std::process::Command::new(bin)
+                            .arg("--version")
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .status()
+                            .map(|s| s.success())
+                            .unwrap_or(false)
+                    })
+            })
+            .await
+            .unwrap_or(false);
 
         if found {
             CheckResult::new(&name, Passed)
