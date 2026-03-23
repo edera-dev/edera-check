@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9](https://github.com/edera-dev/edera-check/compare/v0.2.8...v0.2.9) - 2026-03-23
+
+### Other
+
+- Explicitly check for remaining required hostbins ([#68](https://github.com/edera-dev/edera-check/pull/68))
+
 ## [0.2.8](https://github.com/edera-dev/edera-check/compare/v0.2.7...v0.2.8) - 2026-03-18
 
 ### Other
