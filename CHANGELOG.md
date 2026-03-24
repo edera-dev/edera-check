@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11](https://github.com/edera-dev/edera-check/compare/v0.2.10...v0.2.11) - 2026-03-24
+
+### Other
+
+- Also get kubelet logs ([#75](https://github.com/edera-dev/edera-check/pull/75))
+- Capture daemon logs in bundle ([#73](https://github.com/edera-dev/edera-check/pull/73))
+
 ## [0.2.10](https://github.com/edera-dev/edera-check/compare/v0.2.9...v0.2.10) - 2026-03-23
 
 ### Other
