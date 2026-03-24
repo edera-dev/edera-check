@@ -200,7 +200,6 @@ impl SystemRecorder {
         self.run_tool("journalctl -u protect-storage").await
     }
 
-
     /// Records the `protect-network` journalctl log.
     ///
     /// Manual equivalent:
