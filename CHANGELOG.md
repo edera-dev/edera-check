@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.10](https://github.com/edera-dev/edera-check/compare/v0.2.9...v0.2.10) - 2026-03-23
+
+### Other
+
+- Bump the cargo-updates group across 1 directory with 2 updates ([#66](https://github.com/edera-dev/edera-check/pull/66))
+- Forgot to wrap these in hostexec closures ([#70](https://github.com/edera-dev/edera-check/pull/70))
+
 ## [0.2.9](https://github.com/edera-dev/edera-check/compare/v0.2.8...v0.2.9) - 2026-03-23
 
 ### Other
