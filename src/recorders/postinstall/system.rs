@@ -36,6 +36,9 @@ impl SystemRecorder {
             self.record_cpuinfo().boxed(),
             self.record_cmdline().boxed(),
             self.record_hv_console().boxed(),
+            self.record_daemon_logs().boxed(),
+            self.record_cri_logs().boxed(),
+            self.record_storage_logs().boxed(),
             self.record_grub_cfg().boxed(),
             self.record_kernel_cfg().boxed(),
             self.record_xen_capabilities().boxed(),
@@ -162,6 +165,36 @@ impl SystemRecorder {
     /// ```
     pub async fn record_hv_console(&self) -> CheckResult {
         self.run_tool("protect-ctl host hv-console").await
+    }
+
+    /// Records the `protect-daemon` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u protect-daemon
+    /// ```
+    pub async fn record_daemon_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u protect-daemon").await
+    }
+
+    /// Records the `protect-cri` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u protect-cri
+    /// ```
+    pub async fn record_cri_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u protect-cri").await
+    }
+
+    /// Records the `protect-storage` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u protect-storage
+    /// ```
+    pub async fn record_storage_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u protect-storage").await
     }
 
     /// Records CPU hardware details and feature flags.
