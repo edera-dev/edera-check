@@ -39,6 +39,9 @@ impl SystemRecorder {
             self.record_daemon_logs().boxed(),
             self.record_cri_logs().boxed(),
             self.record_storage_logs().boxed(),
+            self.record_kubelet_logs().boxed(),
+            self.record_network_logs().boxed(),
+            self.record_containerd_logs().boxed(),
             self.record_grub_cfg().boxed(),
             self.record_kernel_cfg().boxed(),
             self.record_xen_capabilities().boxed(),
@@ -195,6 +198,36 @@ impl SystemRecorder {
     /// ```
     pub async fn record_storage_logs(&self) -> CheckResult {
         self.run_tool("journalctl -u protect-storage").await
+    }
+
+    /// Records the `protect-network` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u protect-storage
+    /// ```
+    pub async fn record_network_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u protect-network").await
+    }
+
+    /// Records the `containerd` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u containerd
+    /// ```
+    pub async fn record_containerd_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u containerd").await
+    }
+
+    /// Records the `kubelet` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u kubelet
+    /// ```
+    pub async fn record_kubelet_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u kubelet").await
     }
 
     /// Records CPU hardware details and feature flags.
