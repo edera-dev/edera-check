@@ -36,7 +36,7 @@ jobs:
         app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
         private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
 
-    - uses: chainguard-dev/digestabot@a110b65f3d4742d56b5b2b2306de6e2e54306724 # a110b65f3d4742d56b5b2b2306de6e2e54306724
+    - uses: chainguard-dev/digestabot@426beb4b5c10fb90eb8a2bcf3f4f1de854ffb65f # a110b65f3d4742d56b5b2b2306de6e2e54306724
       with:
         token: "${{ steps.generate-token.outputs.token }}"
         signoff: true
