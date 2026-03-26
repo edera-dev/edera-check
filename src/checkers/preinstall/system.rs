@@ -57,18 +57,26 @@ impl SystemChecks {
     /// is in PATH. Currently, the installer and `protect-network` rely on this.
     pub async fn has_nft_bin(&self) -> CheckResult {
         let name = String::from("'nft' Binary Present");
-        match std::process::Command::new("nft")
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-        {
-            Ok(_) => CheckResult::new(&name, Passed),
-            Err(_) => CheckResult::new(
+        let found = self
+            .host_executor
+            .spawn_in_host_ns(async {
+                std::process::Command::new("nft")
+                    .arg("--version")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .is_ok()
+            })
+            .await
+            .unwrap_or(false);
+
+        if found {
+            CheckResult::new(&name, Passed)
+        } else {
+            CheckResult::new(
                 &name,
                 Errored("'nft' binary is required but not present, install `nftables`".into()),
-            ),
+            )
         }
     }
 
