@@ -36,6 +36,7 @@ impl SystemRecorder {
             self.record_cpuinfo().boxed(),
             self.record_cmdline().boxed(),
             self.record_hv_console().boxed(),
+            self.record_hv_debug_info().boxed(),
             self.record_daemon_logs().boxed(),
             self.record_cri_logs().boxed(),
             self.record_storage_logs().boxed(),
@@ -168,6 +169,16 @@ impl SystemRecorder {
     /// ```
     pub async fn record_hv_console(&self) -> CheckResult {
         self.run_tool("protect-ctl host hv-console").await
+    }
+
+    /// Records the Xen hypervisor debug state via the protect-ctl tool.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// protect-ctl host hv-debug-info
+    /// ```
+    pub async fn record_hv_debug_info(&self) -> CheckResult {
+        self.run_tool("protect-ctl host hv-debug-info").await
     }
 
     /// Records the `protect-daemon` journalctl log.
