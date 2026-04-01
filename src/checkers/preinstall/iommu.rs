@@ -72,7 +72,7 @@ impl IOMMUChecks {
             .await
         {
             Ok(true) => CheckResult::new(&name, Passed),
-            Ok(false) => CheckResult::new(&name, Failed("no IOMMU detected".to_string())),
+            Ok(false) => CheckResult::new(&name, Failed("no hardware IOMMU detected".to_string())),
             Err(e) => {
                 debug!("Error: {}", e);
                 CheckResult::new(&name, Errored(e.to_string()))
