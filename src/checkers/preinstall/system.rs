@@ -13,7 +13,7 @@ use sysinfo::{Disks, System};
 const GROUP_IDENTIFIER: &str = "system";
 const NAME: &str = "System Checks";
 const MINIMUM_MEMORY: u64 = 4 * 1024 * 1024 * 1024; // 4GB
-const MINIMUM_DISK_GENERAL: u64 = 1024 * 1024 * 1024; // 5GB
+const MINIMUM_DISK_GENERAL: u64 = 1024 * 1024 * 1024; // 1GB
 const MINIMUM_DISK_VAR: u64 = 5 * 1024 * 1024 * 1024; // 5GB
 const MINIMUM_DISK_BOOT: u64 = 200 * 1024 * 1024; // 200MB
 
