@@ -100,7 +100,7 @@ impl PVHChecks {
                 debug!("Virtualization disabled");
                 CheckResult::new(
                     &name,
-                    Failed(String::from("PVH Not Supported, Virtualization Disabled")),
+                    Failed(String::from("Virtualization Disabled")),
                 )
             }
             Err(e) => {
@@ -304,7 +304,7 @@ impl CheckGroup for PVHChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Optional("PVH feature not available on this system".into())
+        CheckGroupCategory::Optional("PVH feature may not be available on this system".into())
     }
 }
 
