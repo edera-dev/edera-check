@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.15](https://github.com/edera-dev/edera-check/compare/v0.2.14...v0.2.15) - 2026-04-01
+
+### Other
+
+- postinstall as well ([#94](https://github.com/edera-dev/edera-check/pull/94))
+- Unlike `/etc/hostname`, this should always be present ([#92](https://github.com/edera-dev/edera-check/pull/92))
+
 ## [0.2.14](https://github.com/edera-dev/edera-check/compare/v0.2.13...v0.2.14) - 2026-04-01
 
 ### Other
