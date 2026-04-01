@@ -98,7 +98,10 @@ impl PVHChecks {
             }
             Ok(VirtStatus::Disabled) => {
                 debug!("Hardware Virtualization disabled");
-                CheckResult::new(&name, Failed(String::from("Hardware Virtualization Disabled")))
+                CheckResult::new(
+                    &name,
+                    Failed(String::from("Hardware Virtualization Disabled")),
+                )
             }
             Err(e) => {
                 error!("Error: {}", e);
