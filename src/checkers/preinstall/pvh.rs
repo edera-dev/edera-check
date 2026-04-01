@@ -93,12 +93,12 @@ impl PVHChecks {
 
         match self.discover_cpu_virtualization().await {
             Ok(VirtStatus::Enabled) | Ok(VirtStatus::CanBeEnabled) => {
-                debug!("Virtualization is enabled or can be enabled");
+                debug!("Hardware Virtualization is enabled or can be enabled");
                 CheckResult::new(&name, Passed)
             }
             Ok(VirtStatus::Disabled) => {
-                debug!("Virtualization disabled");
-                CheckResult::new(&name, Failed(String::from("Virtualization Disabled")))
+                debug!("Hardware Virtualization disabled");
+                CheckResult::new(&name, Failed(String::from("Hardware Virtualization Disabled")))
             }
             Err(e) => {
                 error!("Error: {}", e);
