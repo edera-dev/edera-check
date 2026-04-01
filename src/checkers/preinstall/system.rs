@@ -5,6 +5,7 @@ use crate::helpers::{
 };
 
 use async_trait::async_trait;
+use bytesize::ByteSize;
 use futures::{FutureExt, future::join_all};
 use log::debug;
 use sysinfo::{Disks, System};
@@ -12,7 +13,9 @@ use sysinfo::{Disks, System};
 const GROUP_IDENTIFIER: &str = "system";
 const NAME: &str = "System Checks";
 const MINIMUM_MEMORY: u64 = 4 * 1024 * 1024 * 1024; // 4GB
-const MINIMUM_DISK: u64 = 20 * 1024 * 1024 * 1024; // 20GB
+const MINIMUM_DISK_GENERAL: u64 = 1024 * 1024 * 1024; // 1GB
+const MINIMUM_DISK_VAR: u64 = 5 * 1024 * 1024 * 1024; // 5GB
+const MINIMUM_DISK_BOOT: u64 = 200 * 1024 * 1024; // 200MB
 
 pub struct SystemChecks {
     host_executor: HostNamespaceExecutor,
@@ -25,7 +28,11 @@ impl SystemChecks {
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([
             self.enough_memory().boxed(),
-            self.enough_disk().boxed(),
+            self.enough_disk("/usr".into(), MINIMUM_DISK_GENERAL)
+                .boxed(),
+            self.enough_disk("/var/lib".into(), MINIMUM_DISK_VAR)
+                .boxed(),
+            self.enough_disk("/boot".into(), MINIMUM_DISK_BOOT).boxed(),
             self.has_nft_bin().boxed(),
             self.has_package_manager_bin().boxed(),
             self.has_grub_mkconfig_bin().boxed(),
@@ -247,47 +254,50 @@ impl SystemChecks {
         CheckResult::new(&name, result)
     }
 
-    /// Checks that at least one mounted filesystem has 20 GB or more of available space.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// df -BG | awk 'NR>1 { gsub(/G/,""); if (int($4) >= 20) found=1 } END { exit !found }'
-    /// ```
-    pub async fn enough_disk(&self) -> CheckResult {
-        let name = String::from("Enough Disk");
-
+    pub async fn enough_disk(&self, mount_path: String, free_thresh: u64) -> CheckResult {
+        let name = format!("Enough Disk Space for {}", &mount_path);
         let result = match self
             .host_executor
-            .spawn_in_host_ns(async {
-                let mut result = Failed(String::from("Not enough disk space on any disk"));
+            .spawn_in_host_ns(async move {
                 let disks = Disks::new_with_refreshed_list();
-                for disk in &disks {
-                    if disk.available_space() < MINIMUM_DISK {
-                        debug!(
-                            "Not enough space on disk mounted at {} - {}",
-                            disk.mount_point().display(),
-                            disk.available_space()
-                        );
-                    } else {
-                        debug!(
-                            "Enough space on disk mounted at {} - {}",
-                            disk.mount_point().display(),
-                            disk.available_space()
-                        );
-                        result = Passed;
-                    }
+                match Self::available_space_for_path(&disks, &mount_path) {
+                    Some(avail) if avail >= free_thresh => Passed,
+                    Some(avail) => Failed(format!(
+                        "{} has {} free, need at least {}",
+                        mount_path,
+                        ByteSize(avail),
+                        ByteSize(free_thresh),
+                    )),
+                    None => Failed(format!(
+                        "no mounted filesystem found covering {}",
+                        mount_path
+                    )),
                 }
-                result
             })
             .await
         {
             Ok(result) => result,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(e.to_string()));
-            }
+            Err(e) => Errored(e.to_string()),
         };
-
         CheckResult::new(&name, result)
+    }
+
+    /// Finds available bytes for the filesystem that best covers `path`
+    fn available_space_for_path(disks: &Disks, path: &str) -> Option<u64> {
+        let target = std::path::Path::new(path);
+        disks
+            .iter()
+            .filter(|d| target.starts_with(d.mount_point()))
+            .max_by_key(|d| d.mount_point().as_os_str().len())
+            .map(|d| {
+                debug!(
+                    "Best mount for {}: {} ({} bytes available)",
+                    path,
+                    d.mount_point().display(),
+                    d.available_space()
+                );
+                d.available_space()
+            })
     }
 }
 
