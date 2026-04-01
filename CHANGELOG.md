@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.16](https://github.com/edera-dev/edera-check/compare/v0.2.15...v0.2.16) - 2026-04-01
+
+### Other
+
+- `preinstall`, like `postinstall` should also check loadable (versus just loaded or builtin) ([#95](https://github.com/edera-dev/edera-check/pull/95))
+
 ## [0.2.15](https://github.com/edera-dev/edera-check/compare/v0.2.14...v0.2.15) - 2026-04-01
 
 ### Other
