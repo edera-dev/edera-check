@@ -46,12 +46,18 @@ impl KernelChecks {
         }
     }
 
-    /// Checks that `nf_tables` and `msr` are either built into or loaded by the running kernel.
+    /// Checks that `nf_tables` and `msr` are built into, currently loaded by, or loadable
+    /// (present in `modules.dep`) on the running kernel.
     ///
     /// Manual equivalent:
     /// ```sh
-    /// grep -E 'nf_tables|msr' /lib/modules/$(uname -r)/modules.builtin
-    /// grep -E '^nf_tables |^msr ' /proc/modules
+    /// KV=$(uname -r)
+    /// for mod in nf_tables msr; do
+    ///   grep -q "$mod" /lib/modules/$KV/modules.builtin \
+    ///     || grep -q "^${mod} " /proc/modules \
+    ///     || grep -q "$mod" /lib/modules/$KV/modules.dep \
+    ///     && echo "$mod: OK" || echo "$mod: MISSING"
+    /// done
     /// ```
     async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
@@ -69,6 +75,14 @@ impl KernelChecks {
 
         // Search loaded modules
         let remaining = match khelper::find_loaded(&self.host_executor, &remaining).await {
+            Ok(r) => r,
+            Err(e) => {
+                return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
+            }
+        };
+
+        // Search loadable modules (present in modules.dep but not yet loaded)
+        let remaining = match khelper::find_loadable(&self.host_executor, &remaining).await {
             Ok(r) => r,
             Err(e) => {
                 return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
