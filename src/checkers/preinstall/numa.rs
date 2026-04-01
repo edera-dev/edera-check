@@ -51,7 +51,7 @@ impl NUMAChecks {
     /// ```sh
     /// ls /sys/devices/system/node | grep -c '^node[0-9]'  # must be <= 1
     /// ```
-    pub async fn check_numa(&self) -> CheckResult {
+    async fn check_numa(&self) -> CheckResult {
         let name = String::from("IOMMU Support");
 
         match self
