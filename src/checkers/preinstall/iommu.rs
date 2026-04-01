@@ -53,7 +53,7 @@ impl IOMMUChecks {
     ///   || ls /sys/firmware/acpi/tables/IVRS 2>/dev/null && echo "AMD-Vi" \
     ///   || echo "no IOMMU"
     /// ```
-    pub async fn check_iommu(&self) -> CheckResult {
+    async fn check_iommu(&self) -> CheckResult {
         let name = String::from("IOMMU Support");
 
         match self

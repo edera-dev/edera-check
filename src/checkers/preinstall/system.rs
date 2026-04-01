@@ -62,7 +62,7 @@ impl SystemChecks {
 
     /// Checks that the `nft` binary, typically from the `nftables` package,
     /// is in PATH. Currently, the installer and `protect-network` rely on this.
-    pub async fn has_nft_bin(&self) -> CheckResult {
+    async fn has_nft_bin(&self) -> CheckResult {
         let name = String::from("'nft' Binary Present");
         let found = self
             .host_executor
@@ -91,7 +91,7 @@ impl SystemChecks {
     /// It is assumed that all of these respond to `--version`.
     /// On all supported systems this should be a given.
     /// Currently, the installer relies explicitly on these being present on the host.
-    pub async fn has_linux_util_bins(&self, bins: &[&str]) -> CheckResult {
+    async fn has_linux_util_bins(&self, bins: &[&str]) -> CheckResult {
         let name = String::from("Basic Linux Utility Binaries Present");
         let owned_bins: Vec<String> = bins.iter().map(|s| s.to_string()).collect();
 
@@ -129,7 +129,7 @@ impl SystemChecks {
 
     /// Checks that either `grub-mkconfig` or `grub2-mkconfig` is present in PATH,
     /// as the installer currently requires one or the other.
-    pub async fn has_grub_mkconfig_bin(&self) -> CheckResult {
+    async fn has_grub_mkconfig_bin(&self) -> CheckResult {
         let name = String::from("'grub-mkconfig' Binary Present");
         let found = self
             .host_executor
@@ -159,7 +159,7 @@ impl SystemChecks {
 
     /// Checks that either `systemctl` or `rc-update` is present in PATH,
     /// as the installer requires one or the other to enable services.
-    pub async fn has_service_manager_bin(&self) -> CheckResult {
+    async fn has_service_manager_bin(&self) -> CheckResult {
         let name = String::from("Service Manager Binary Present");
         let found = self
             .host_executor
@@ -189,7 +189,7 @@ impl SystemChecks {
 
     /// Checks that at least one supported package manager is present in PATH,
     /// as the installer requires one to install system packages.
-    pub async fn has_package_manager_bin(&self) -> CheckResult {
+    async fn has_package_manager_bin(&self) -> CheckResult {
         let name = String::from("Package Manager Binary Present");
         let found = self
             .host_executor
@@ -225,7 +225,7 @@ impl SystemChecks {
     /// ```sh
     /// awk '/MemTotal/ { if ($2 >= 4194304) print "OK"; else print "FAIL" }' /proc/meminfo
     /// ```
-    pub async fn enough_memory(&self) -> CheckResult {
+    async fn enough_memory(&self) -> CheckResult {
         let name = String::from("Enough Memory");
 
         let total_mem = match self
@@ -254,7 +254,7 @@ impl SystemChecks {
         CheckResult::new(&name, result)
     }
 
-    pub async fn enough_disk(&self, mount_path: String, free_thresh: u64) -> CheckResult {
+    async fn enough_disk(&self, mount_path: String, free_thresh: u64) -> CheckResult {
         let name = format!("Enough Disk Space for {}", &mount_path);
         let result = match self
             .host_executor

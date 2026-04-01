@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.14](https://github.com/edera-dev/edera-check/compare/v0.2.13...v0.2.14) - 2026-04-01
+
+### Other
+
+- Update images digests ([#83](https://github.com/edera-dev/edera-check/pull/83))
+- Bump the cargo-updates group across 1 directory with 2 updates ([#85](https://github.com/edera-dev/edera-check/pull/85))
+- Remove `pub` from methods that don't need it ([#89](https://github.com/edera-dev/edera-check/pull/89))
+- Make disk checks smarter ([#87](https://github.com/edera-dev/edera-check/pull/87))
+
 ## [0.2.13](https://github.com/edera-dev/edera-check/compare/v0.2.12...v0.2.13) - 2026-03-26
 
 ### Other

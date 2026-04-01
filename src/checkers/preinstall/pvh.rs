@@ -86,7 +86,7 @@ impl PVHChecks {
     /// grep -m1 '^flags' /proc/cpuinfo | grep -qw svm && echo "svm present"
     /// rdmsr 0xC0010114  # bit 4 = SVMDIS; must be 0
     /// ```
-    pub async fn check_virtualization(&self) -> CheckResult {
+    async fn check_virtualization(&self) -> CheckResult {
         let name = String::from("PVH Support");
 
         self.ensure_msr_modprobe().await;
