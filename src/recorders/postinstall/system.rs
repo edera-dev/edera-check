@@ -162,16 +162,15 @@ impl SystemRecorder {
 
         self.host_executor
             .spawn_in_host_ns(async {
-                let ep_bytes =
-                    match std::fs::read("/sys/firmware/dmi/tables/smbios_entry_point") {
-                        Ok(b) => b,
-                        Err(e) => {
-                            return CheckResult::new(
-                                NAME,
-                                Skipped(format!("could not read smbios_entry_point: {e}")),
-                            )
-                        }
-                    };
+                let ep_bytes = match std::fs::read("/sys/firmware/dmi/tables/smbios_entry_point") {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return CheckResult::new(
+                            NAME,
+                            Skipped(format!("could not read smbios_entry_point: {e}")),
+                        );
+                    }
+                };
 
                 let entry_point = match dmidecode::EntryPoint::search(&ep_bytes) {
                     Ok(ep) => ep,
@@ -179,7 +178,7 @@ impl SystemRecorder {
                         return CheckResult::new(
                             NAME,
                             Skipped(format!("could not parse DMI entry point: {e:?}")),
-                        )
+                        );
                     }
                 };
 
@@ -189,7 +188,7 @@ impl SystemRecorder {
                         return CheckResult::new(
                             NAME,
                             Skipped(format!("could not read DMI table: {e}")),
-                        )
+                        );
                     }
                 };
 
