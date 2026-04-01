@@ -53,7 +53,7 @@ impl KernelChecks {
     /// grep -E 'nf_tables|msr' /lib/modules/$(uname -r)/modules.builtin
     /// grep -E '^nf_tables |^msr ' /proc/modules
     /// ```
-    pub async fn has_modules(&self) -> CheckResult {
+    async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
 
         let required_modules: Vec<String> =
