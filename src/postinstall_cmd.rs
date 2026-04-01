@@ -119,7 +119,7 @@ pub async fn do_postinstall(
     let mut all_groups_result = Passed;
 
     let hostname = host_executor
-        .spawn_in_host_ns(async { std::fs::read_to_string("/etc/hostname").unwrap() })
+        .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
         .await?;
 
     let base_dir = if let Some(dir) = report_dir {
