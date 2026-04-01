@@ -68,7 +68,7 @@ impl PostinstallKernelChecks {
     /// ```sh
     /// uname -r  # must be >= 5.15.0
     /// ```
-    pub async fn version_is_good(&self) -> CheckResult {
+    async fn version_is_good(&self) -> CheckResult {
         let name = String::from("Host Kernel Version Is Good");
         let floor = kernel::Version::new(KVER_FLOOR_MAJOR, KVER_FLOOR_MINOR, KVER_FLOOR_PATCH);
 
@@ -97,7 +97,7 @@ impl PostinstallKernelChecks {
     ///     && echo "$mod: OK" || echo "$mod: MISSING"
     /// done
     /// ```
-    pub async fn has_modules(&self) -> CheckResult {
+    async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
 
         let required_modules: Vec<String> =
