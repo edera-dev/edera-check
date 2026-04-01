@@ -1,4 +1,5 @@
 [workspace]
+semver_check = false
 pr_branch_prefix = "release/"
 pr_draft = true
 pr_labels = ["release"]

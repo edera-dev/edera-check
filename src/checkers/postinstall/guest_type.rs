@@ -49,7 +49,7 @@ impl GuestTypeChecks {
     /// ```sh
     /// cat /sys/hypervisor/guest_type  # must read "PVH" for PVH support, otherwise only PV supported.
     /// ```
-    pub async fn check_guest_support(&self) -> CheckResult {
+    async fn check_guest_support(&self) -> CheckResult {
         let name = String::from("Guest Type Support");
         match self
             .host_executor
