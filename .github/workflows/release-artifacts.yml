@@ -39,7 +39,7 @@ jobs:
 
     steps:
     - name: 'Harden runner'
-      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
       with:
         egress-policy: audit
 
@@ -55,7 +55,7 @@ jobs:
         cache-binary: false
 
     - name: 'Login to ghcr'
-      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+      uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
       with:
         registry: ghcr.io
         username: '${{ github.actor }}'
@@ -96,7 +96,7 @@ jobs:
         push: true
 
     - name: 'Install cosign'
-      uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+      uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
     - name: 'Cosign sign all images'
       shell: bash
@@ -128,7 +128,7 @@ jobs:
     runs-on: '${{ matrix.platform.on }}'
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
