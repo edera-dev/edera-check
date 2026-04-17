@@ -1,6 +1,6 @@
 use edera_check::checkers::postinstall::{
     guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, kube::KubeChecks,
-    services::ServiceChecks,
+    services::ServiceChecks, system::SystemChecks,
 };
 
 use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
@@ -36,6 +36,7 @@ pub async fn do_postinstall(
         Box::new(PostinstallKernelChecks::new(host_executor.clone())),
         Box::new(ServiceChecks::new(host_executor.clone())),
         Box::new(KubeChecks::new(host_executor.clone())),
+        Box::new(SystemChecks::new(host_executor.clone())),
     ];
 
     if record_hostinfo {
@@ -119,7 +120,7 @@ pub async fn do_postinstall(
     let mut all_groups_result = Passed;
 
     let hostname = host_executor
-        .spawn_in_host_ns(async { std::fs::read_to_string("/etc/hostname").unwrap() })
+        .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
         .await?;
 
     let base_dir = if let Some(dir) = report_dir {

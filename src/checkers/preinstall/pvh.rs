@@ -93,14 +93,14 @@ impl PVHChecks {
 
         match self.discover_cpu_virtualization().await {
             Ok(VirtStatus::Enabled) | Ok(VirtStatus::CanBeEnabled) => {
-                debug!("Virtualization is enabled or can be enabled");
+                debug!("Hardware Virtualization is enabled or can be enabled");
                 CheckResult::new(&name, Passed)
             }
             Ok(VirtStatus::Disabled) => {
-                debug!("Virtualization disabled");
+                debug!("Hardware Virtualization disabled");
                 CheckResult::new(
                     &name,
-                    Failed(String::from("PVH Not Supported, Virtualization Disabled")),
+                    Failed(String::from("Hardware Virtualization Disabled")),
                 )
             }
             Err(e) => {
@@ -304,7 +304,7 @@ impl CheckGroup for PVHChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Optional("PVH feature not available on this system".into())
+        CheckGroupCategory::Optional("PVH feature may not be available on this system".into())
     }
 }
 
