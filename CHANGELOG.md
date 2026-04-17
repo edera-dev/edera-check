@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.17](https://github.com/edera-dev/edera-check/compare/v0.2.16...v0.2.17) - 2026-04-17
+
+### Other
+
+- Update images digests ([#98](https://github.com/edera-dev/edera-check/pull/98))
+- Use `dmidecode` crate to avoid hostbin ([#91](https://github.com/edera-dev/edera-check/pull/91))
+- Use friendly units for memcheck ([#109](https://github.com/edera-dev/edera-check/pull/109))
+- Add boot log ([#106](https://github.com/edera-dev/edera-check/pull/106))
+- Postinstall disk advisory check ([#107](https://github.com/edera-dev/edera-check/pull/107))
+
 ## [0.2.16](https://github.com/edera-dev/edera-check/compare/v0.2.15...v0.2.16) - 2026-04-01
 
 ### Other
