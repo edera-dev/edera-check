@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use bytesize::ByteSize;
 use futures::{FutureExt, future::join_all};
 use log::debug;
-use sysinfo::{Disks, System};
+use sysinfo::Disks;
 
 const GROUP_IDENTIFIER: &str = "system";
 const NAME: &str = "System Checks";
@@ -23,10 +23,9 @@ impl SystemChecks {
         SystemChecks { host_executor }
     }
     pub async fn run_all(&self) -> CheckGroupResult {
-        let results = join_all([
-            self.enough_disk("/var/lib".into(), RECOMMENDED_DISK_VAR)
-                .boxed(),
-        ])
+        let results = join_all([self
+            .enough_disk("/var/lib".into(), RECOMMENDED_DISK_VAR)
+            .boxed()])
         .await;
 
         let mut group_result = Passed;
