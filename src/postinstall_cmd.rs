@@ -1,6 +1,6 @@
 use edera_check::checkers::postinstall::{
     guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, kube::KubeChecks,
-    services::ServiceChecks,
+    services::ServiceChecks, system::SystemChecks,
 };
 
 use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
@@ -36,6 +36,7 @@ pub async fn do_postinstall(
         Box::new(PostinstallKernelChecks::new(host_executor.clone())),
         Box::new(ServiceChecks::new(host_executor.clone())),
         Box::new(KubeChecks::new(host_executor.clone())),
+        Box::new(SystemChecks::new(host_executor.clone())),
     ];
 
     if record_hostinfo {

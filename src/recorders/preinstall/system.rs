@@ -149,7 +149,52 @@ impl SystemRecorder {
     /// dmidecode
     /// ```
     pub async fn record_dmidecode(&self) -> CheckResult {
-        self.run_tool("dmidecode").await
+        const NAME: &str = "Captured dmidecode";
+
+        self.host_executor
+            .spawn_in_host_ns(async {
+                let ep_bytes = match std::fs::read("/sys/firmware/dmi/tables/smbios_entry_point") {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return CheckResult::new(
+                            NAME,
+                            Skipped(format!("could not read smbios_entry_point: {e}")),
+                        );
+                    }
+                };
+
+                let entry_point = match dmidecode::EntryPoint::search(&ep_bytes) {
+                    Ok(ep) => ep,
+                    Err(e) => {
+                        return CheckResult::new(
+                            NAME,
+                            Skipped(format!("could not parse DMI entry point: {e:?}")),
+                        );
+                    }
+                };
+
+                let table_bytes = match std::fs::read("/sys/firmware/dmi/tables/DMI") {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return CheckResult::new(
+                            NAME,
+                            Skipped(format!("could not read DMI table: {e}")),
+                        );
+                    }
+                };
+
+                let mut output = String::new();
+                for structure in entry_point.structures(&table_bytes) {
+                    match structure {
+                        Ok(s) => output.push_str(&format!("{s:#?}\n")),
+                        Err(e) => output.push_str(&format!("Error: {e:?}\n")),
+                    }
+                }
+
+                CheckResult::new_with_output(NAME, Passed, Some(output.trim().to_string()))
+            })
+            .await
+            .unwrap_or_else(|e| CheckResult::new(NAME, Skipped(e.to_string())))
     }
 
     /// Records CPU hardware details and feature flags.

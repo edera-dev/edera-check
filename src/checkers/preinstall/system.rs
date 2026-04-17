@@ -248,7 +248,11 @@ impl SystemChecks {
 
         let mut result = Passed;
         if total_mem < MINIMUM_MEMORY {
-            let reason = format!("total memory is less than {}", MINIMUM_MEMORY);
+            let reason = format!(
+                "total memory is {} but need at least {}",
+                ByteSize(total_mem),
+                ByteSize(MINIMUM_MEMORY)
+            );
             result = Failed(reason);
         }
         CheckResult::new(&name, result)
