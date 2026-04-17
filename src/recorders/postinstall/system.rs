@@ -47,6 +47,7 @@ impl SystemRecorder {
             self.record_kernel_cfg().boxed(),
             self.record_xen_capabilities().boxed(),
             self.record_loaded_modules().boxed(),
+            self.record_boot_log().boxed(),
         ])
         .await;
 
@@ -239,6 +240,16 @@ impl SystemRecorder {
     /// ```
     pub async fn record_kubelet_logs(&self) -> CheckResult {
         self.run_tool("journalctl -u kubelet").await
+    }
+
+    /// Records the current boot kernel journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -b
+    /// ```
+    pub async fn record_boot_log(&self) -> CheckResult {
+        self.run_tool("journalctl -b").await
     }
 
     /// Records CPU hardware details and feature flags.
