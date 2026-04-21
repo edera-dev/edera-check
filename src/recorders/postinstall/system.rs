@@ -43,6 +43,7 @@ impl SystemRecorder {
             self.record_kubelet_logs().boxed(),
             self.record_network_logs().boxed(),
             self.record_containerd_logs().boxed(),
+            self.record_oxenstored_logs().boxed(),
             self.record_grub_cfg().boxed(),
             self.record_kernel_cfg().boxed(),
             self.record_xen_capabilities().boxed(),
@@ -275,6 +276,16 @@ impl SystemRecorder {
     /// ```
     pub async fn record_containerd_logs(&self) -> CheckResult {
         self.run_tool("journalctl -u containerd").await
+    }
+
+    /// Records the `oxenstored` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u oxenstored
+    /// ```
+    pub async fn record_oxenstored_logs(&self) -> CheckResult {
+        self.run_tool("journalctl -u oxenstored").await
     }
 
     /// Records the `kubelet` journalctl log.
