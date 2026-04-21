@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.18](https://github.com/edera-dev/edera-check/compare/v0.2.17...v0.2.18) - 2026-04-17
+
+### Other
+
+- Capture oxenstored logs ([#111](https://github.com/edera-dev/edera-check/pull/111))
+
 ## [0.2.17](https://github.com/edera-dev/edera-check/compare/v0.2.16...v0.2.17) - 2026-04-17
 
 ### Other
