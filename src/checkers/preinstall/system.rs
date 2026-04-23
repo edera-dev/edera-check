@@ -27,6 +27,7 @@ impl SystemChecks {
     }
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([
+            self.not_snap_docker().boxed(),
             self.enough_memory().boxed(),
             self.enough_disk("/usr".into(), MINIMUM_DISK_GENERAL)
                 .boxed(),
@@ -57,6 +58,24 @@ impl SystemChecks {
             name: NAME.to_string(),
             result: group_result,
             results,
+        }
+    }
+
+    async fn not_snap_docker(&self) -> CheckResult {
+        let name = String::from("Supported Docker Runtime");
+        let is_snap = std::fs::read_to_string("/proc/self/mountinfo")
+            .map(|c| c.contains("snap/docker"))
+            .unwrap_or(false);
+
+        if is_snap {
+            CheckResult::new(
+                &name,
+                Errored(
+                    "Docker is running as a snap: hosts with snap-managed Docker runtimes are not supported installation targets".into(),
+                ),
+            )
+        } else {
+            CheckResult::new(&name, Passed)
         }
     }
 
