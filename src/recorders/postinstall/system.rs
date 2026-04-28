@@ -1,40 +1,44 @@
-use anyhow::{Result, bail};
 use async_trait::async_trait;
-use flate2::read::GzDecoder;
 use futures::{FutureExt, future::join_all};
-use procfs::Current;
-use std::{
-    io::Read,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::path::PathBuf;
 
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed, Skipped},
     host_executor::HostNamespaceExecutor,
 };
+use crate::recorders::common::CommonSystemRecorder;
 
 const GROUP_IDENTIFIER: &str = "sysinfo";
 const NAME: &str = "Postinstall System Info Recorder";
 
 pub struct SystemRecorder {
-    host_executor: HostNamespaceExecutor,
+    common: CommonSystemRecorder,
 }
 
 impl SystemRecorder {
     pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        SystemRecorder { host_executor }
+        SystemRecorder {
+            common: CommonSystemRecorder::new(host_executor),
+        }
     }
 
     /// Run all the recorders asynchronously, then
     /// join and collect the results.
     pub async fn run_all(&self) -> CheckGroupResult {
         let results = join_all([
-            self.record_lspci().boxed(),
-            self.record_dmidecode().boxed(),
-            self.record_cpuinfo().boxed(),
-            self.record_cmdline().boxed(),
+            self.common.record_lspci().boxed(),
+            self.common.record_dmidecode().boxed(),
+            self.common.record_cpuinfo().boxed(),
+            self.common.record_cmdline().boxed(),
+            self.common.record_grub_cfg().boxed(),
+            self.common.record_kernel_cfg().boxed(),
+            self.common.record_loaded_modules().boxed(),
+            self.common.record_meminfo().boxed(),
+            self.common.record_vmstat().boxed(),
+            self.common.record_slabinfo().boxed(),
+            self.common.record_mounts().boxed(),
+            self.common.record_mountinfo().boxed(),
             self.record_hv_console().boxed(),
             self.record_hv_debug_info().boxed(),
             self.record_daemon_logs().boxed(),
@@ -44,17 +48,16 @@ impl SystemRecorder {
             self.record_network_logs().boxed(),
             self.record_containerd_logs().boxed(),
             self.record_oxenstored_logs().boxed(),
-            self.record_grub_cfg().boxed(),
-            self.record_kernel_cfg().boxed(),
             self.record_xen_capabilities().boxed(),
-            self.record_loaded_modules().boxed(),
             self.record_boot_log().boxed(),
+            self.record_orchestrator_logs().boxed(),
+            self.record_preinit_logs().boxed(),
+            self.record_daemon_toml().boxed(),
         ])
         .await;
 
         let mut group_result = Passed;
         for res in results.iter() {
-            // Set group result to Failed if we failed and aren't already in an Errored state
             if !matches!(group_result, Errored(_)) && matches!(res.result, Failed(_)) {
                 group_result = Failed(String::from("group failed"));
             }
@@ -71,143 +74,6 @@ impl SystemRecorder {
         }
     }
 
-    /// Runs the given command + args in host namespaces and captures the results.
-    async fn run_tool(&self, tool: &str) -> CheckResult {
-        let name = format!("Captured {tool}");
-        let mut tool_args: Vec<String> = tool.split(" ").map(|s| s.to_string()).collect();
-        let cmd = tool_args.remove(0);
-
-        let output = match self
-            .host_executor
-            .spawn_in_host_ns(async move { Command::new(cmd).args(tool_args).output() })
-            .await
-        {
-            Ok(output) => output,
-            Err(e) => return CheckResult::new(&name, Skipped(e.to_string())),
-        };
-
-        let output = match output {
-            Ok(output) => output,
-            Err(e) => return CheckResult::new(&name, Skipped(e.to_string())),
-        };
-
-        if !output.status.success() {
-            let error_message = String::from_utf8_lossy(&output.stderr);
-            return CheckResult::new(&name, Skipped(error_message.to_string()));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        CheckResult::new_with_output(&name, Passed, Some(stdout))
-    }
-
-    /// Captures the content of a given file on the host.
-    async fn record_file(&self, file: &Path) -> Option<CheckResult> {
-        let local_file = file.to_path_buf();
-
-        self.host_executor
-            .spawn_in_host_ns(async move {
-                if !local_file.exists() {
-                    return None;
-                }
-                let name = format!("Captured {}", local_file.display());
-
-                let bytes = match tokio::fs::read(&local_file).await {
-                    Ok(b) => b,
-                    Err(e) => {
-                        return Some(CheckResult::new(
-                            &name,
-                            Errored(format!("failed to read {}: {e}", local_file.display())),
-                        ));
-                    }
-                };
-
-                let content = if bytes.starts_with(&[0x1f, 0x8b]) {
-                    // Gzip magic bytes detected
-                    let mut decoder = GzDecoder::new(&bytes[..]);
-                    let mut s = String::new();
-                    decoder.read_to_string(&mut s).map(|_| s)
-                } else {
-                    String::from_utf8(bytes)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-                };
-
-                match content {
-                    Ok(c) => Some(CheckResult::new_with_output(&name, Passed, Some(c))),
-                    Err(e) => Some(CheckResult::new(
-                        &name,
-                        Errored(format!("failed to decode {}: {e}", local_file.display())),
-                    )),
-                }
-            })
-            .await
-            .unwrap_or_else(|_| panic!("could not record {}", file.display()))
-    }
-
-    /// Records verbose PCI device listing.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// lspci -vvv
-    /// ```
-    pub async fn record_lspci(&self) -> CheckResult {
-        self.run_tool("lspci -vvv").await
-    }
-
-    /// Records DMI/SMBIOS hardware information (BIOS, board, chassis, CPU, memory).
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// dmidecode
-    /// ```
-    pub async fn record_dmidecode(&self) -> CheckResult {
-        const NAME: &str = "Captured dmidecode";
-
-        self.host_executor
-            .spawn_in_host_ns(async {
-                let ep_bytes = match std::fs::read("/sys/firmware/dmi/tables/smbios_entry_point") {
-                    Ok(b) => b,
-                    Err(e) => {
-                        return CheckResult::new(
-                            NAME,
-                            Skipped(format!("could not read smbios_entry_point: {e}")),
-                        );
-                    }
-                };
-
-                let entry_point = match dmidecode::EntryPoint::search(&ep_bytes) {
-                    Ok(ep) => ep,
-                    Err(e) => {
-                        return CheckResult::new(
-                            NAME,
-                            Skipped(format!("could not parse DMI entry point: {e:?}")),
-                        );
-                    }
-                };
-
-                let table_bytes = match std::fs::read("/sys/firmware/dmi/tables/DMI") {
-                    Ok(b) => b,
-                    Err(e) => {
-                        return CheckResult::new(
-                            NAME,
-                            Skipped(format!("could not read DMI table: {e}")),
-                        );
-                    }
-                };
-
-                let mut output = String::new();
-                for structure in entry_point.structures(&table_bytes) {
-                    match structure {
-                        Ok(s) => output.push_str(&format!("{s:#?}\n")),
-                        Err(e) => output.push_str(&format!("Error: {e:?}\n")),
-                    }
-                }
-
-                CheckResult::new_with_output(NAME, Passed, Some(output.trim().to_string()))
-            })
-            .await
-            .unwrap_or_else(|e| CheckResult::new(NAME, Skipped(e.to_string())))
-    }
-
     /// Records the Xen hypervisor console log via the protect-ctl tool.
     ///
     /// Manual equivalent:
@@ -215,7 +81,7 @@ impl SystemRecorder {
     /// protect-ctl host hv-console
     /// ```
     pub async fn record_hv_console(&self) -> CheckResult {
-        self.run_tool("protect-ctl host hv-console").await
+        self.common.run_tool("protect-ctl host hv-console").await
     }
 
     /// Records the Xen hypervisor debug state via the protect-ctl tool.
@@ -225,7 +91,7 @@ impl SystemRecorder {
     /// protect-ctl host hv-debug-info
     /// ```
     pub async fn record_hv_debug_info(&self) -> CheckResult {
-        self.run_tool("protect-ctl host hv-debug-info").await
+        self.common.run_tool("protect-ctl host hv-debug-info").await
     }
 
     /// Records the `protect-daemon` journalctl log.
@@ -235,7 +101,7 @@ impl SystemRecorder {
     /// journalctl -u protect-daemon
     /// ```
     pub async fn record_daemon_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u protect-daemon").await
+        self.common.run_tool("journalctl -u protect-daemon").await
     }
 
     /// Records the `protect-cri` journalctl log.
@@ -245,7 +111,7 @@ impl SystemRecorder {
     /// journalctl -u protect-cri
     /// ```
     pub async fn record_cri_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u protect-cri").await
+        self.common.run_tool("journalctl -u protect-cri").await
     }
 
     /// Records the `protect-storage` journalctl log.
@@ -255,17 +121,17 @@ impl SystemRecorder {
     /// journalctl -u protect-storage
     /// ```
     pub async fn record_storage_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u protect-storage").await
+        self.common.run_tool("journalctl -u protect-storage").await
     }
 
     /// Records the `protect-network` journalctl log.
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-storage
+    /// journalctl -u protect-network
     /// ```
     pub async fn record_network_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u protect-network").await
+        self.common.run_tool("journalctl -u protect-network").await
     }
 
     /// Records the `containerd` journalctl log.
@@ -275,7 +141,7 @@ impl SystemRecorder {
     /// journalctl -u containerd
     /// ```
     pub async fn record_containerd_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u containerd").await
+        self.common.run_tool("journalctl -u containerd").await
     }
 
     /// Records the `oxenstored` journalctl log.
@@ -285,7 +151,7 @@ impl SystemRecorder {
     /// journalctl -u oxenstored
     /// ```
     pub async fn record_oxenstored_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u oxenstored").await
+        self.common.run_tool("journalctl -u oxenstored").await
     }
 
     /// Records the `kubelet` journalctl log.
@@ -295,7 +161,7 @@ impl SystemRecorder {
     /// journalctl -u kubelet
     /// ```
     pub async fn record_kubelet_logs(&self) -> CheckResult {
-        self.run_tool("journalctl -u kubelet").await
+        self.common.run_tool("journalctl -u kubelet").await
     }
 
     /// Records the current boot kernel journalctl log.
@@ -305,31 +171,7 @@ impl SystemRecorder {
     /// journalctl -b
     /// ```
     pub async fn record_boot_log(&self) -> CheckResult {
-        self.run_tool("journalctl -b").await
-    }
-
-    /// Records CPU hardware details and feature flags.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// cat /proc/cpuinfo
-    /// ```
-    pub async fn record_cpuinfo(&self) -> CheckResult {
-        self.record_file(PathBuf::from("/proc/cpuinfo").as_ref())
-            .await
-            .expect("/proc/cpuinfo not found")
-    }
-
-    /// Records the kernel command line used to boot the running kernel.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// cat /proc/cmdline
-    /// ```
-    pub async fn record_cmdline(&self) -> CheckResult {
-        self.record_file(PathBuf::from("/proc/cmdline").as_ref())
-            .await
-            .expect("/proc/cmdline not found")
+        self.common.run_tool("journalctl -b").await
     }
 
     /// Records the Xen hypervisor capability string.
@@ -339,101 +181,49 @@ impl SystemRecorder {
     /// cat /sys/hypervisor/properties/capabilities
     /// ```
     pub async fn record_xen_capabilities(&self) -> CheckResult {
-        self.record_file(PathBuf::from("/sys/hypervisor/properties/capabilities").as_ref())
+        self.common
+            .record_file(PathBuf::from("/sys/hypervisor/properties/capabilities").as_ref())
             .await
             .expect("/sys/hypervisor/properties/capabilities not found")
     }
 
-    /// Records the GRUB bootloader configuration. Checks `/boot/grub2/grub.cfg` first,
-    /// falling back to `/boot/grub/grub.cfg`.
+    /// Records the `protect-orchestrator` journalctl log.
     ///
     /// Manual equivalent:
     /// ```sh
-    /// cat /boot/grub2/grub.cfg || cat /boot/grub/grub.cfg
+    /// journalctl -u protect-orchestrator
     /// ```
-    pub async fn record_grub_cfg(&self) -> CheckResult {
-        // prefer grub2 path, since if both are present for any reason,
-        // that is likely to be the "correct" one.
-        let files = ["/boot/grub2/grub.cfg", "/boot/grub/grub.cfg"];
-
-        for file in files {
-            if let Some(result) = self.record_file(&PathBuf::from(file)).await {
-                return result;
-            }
-        }
-        CheckResult::new(
-            "Record grub config",
-            Skipped(format!("no grub config found in {:?}", files)),
-        )
-    }
-
-    /// Records the kernel build configuration. Checks `/proc/config.gz` first (decompressing
-    /// if needed), falling back to `/boot/config-$(uname -r)`.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// zcat /proc/config.gz || cat /boot/config-$(uname -r)
-    /// ```
-    pub async fn record_kernel_cfg(&self) -> CheckResult {
-        let name = "Record kernel config";
-        // Get kernel version
-        //
-        let Ok(kver) = self.current_kernel_version().await else {
-            return CheckResult::new(name, Errored("failed to find kernel version".to_string()));
-        };
-
-        let files = ["/proc/config.gz", &format!("boot/config-{kver}")];
-
-        for file in files {
-            if let Some(result) = self.record_file(&PathBuf::from(file)).await {
-                return result;
-            }
-        }
-        CheckResult::new(
-            name,
-            Skipped(format!("no kernel config found in {:?}", files)),
-        )
-    }
-
-    /// Records the list of currently loaded kernel modules.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// cut -d' ' -f1 /proc/modules
-    /// ```
-    pub async fn record_loaded_modules(&self) -> CheckResult {
-        let name = "Record current host kernel loaded modules";
-        match self
-            .host_executor
-            .spawn_in_host_ns(async move { procfs::KernelModules::current() })
+    pub async fn record_orchestrator_logs(&self) -> CheckResult {
+        self.common
+            .run_tool("journalctl -u protect-orchestrator")
             .await
-        {
-            Ok(Ok(list)) => CheckResult::new_with_output(
-                name,
-                Passed,
-                Some(list.0.into_keys().collect::<Vec<_>>().join("\n")),
-            ),
-            Ok(Err(e)) => CheckResult::new(name, Errored(e.to_string())),
-            Err(e) => CheckResult::new(name, Skipped(e.to_string())),
-        }
     }
 
-    async fn current_kernel_version(&self) -> Result<String> {
-        self.host_executor
-            .spawn_in_host_ns(async {
-                let output = Command::new("uname")
-                    .arg("-r")
-                    .output()
-                    .expect("Failed to execute command");
+    /// Records the `protect-preinit` journalctl log.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// journalctl -u protect-preinit
+    /// ```
+    pub async fn record_preinit_logs(&self) -> CheckResult {
+        self.common.run_tool("journalctl -u protect-preinit").await
+    }
 
-                if !output.status.success() {
-                    let error_message = String::from_utf8_lossy(&output.stderr);
-                    bail!("{}", error_message);
-                }
-
-                Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-            })
-            .await?
+    /// Records the Edera Protect daemon configuration.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// cat /var/lib/edera/protect/daemon.toml
+    /// ```
+    pub async fn record_daemon_toml(&self) -> CheckResult {
+        let file = "/var/lib/edera/protect/daemon.toml";
+        match self.common.record_file(&PathBuf::from(file)).await {
+            Some(result) => result,
+            None => CheckResult::new(
+                &format!("Captured {file}"),
+                Skipped("file not found".to_string()),
+            ),
+        }
     }
 }
 
