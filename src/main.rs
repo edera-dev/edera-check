@@ -13,7 +13,6 @@ use log::debug;
 use nix::unistd::Uid;
 use std::{
     fs,
-    fs::File,
     path::{Path, PathBuf},
     process,
 };
@@ -141,24 +140,29 @@ async fn main() -> Result<()> {
 async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecutor) -> Result<()> {
     let mut archive_path = base_path.clone();
     archive_path.set_extension("tar.gz");
-    let tar_gz = File::create(&archive_path)
-        .with_context(|| format!("failed to create {}", archive_path.display()))?;
-    let enc = GzEncoder::new(tar_gz, Compression::default());
-    let mut tar = tar::Builder::new(enc);
-    tar.append_dir_all(".", &base_path)
-        .context("failed to append to tar {}")?;
-    tar.into_inner().context("failed to finish tar")?;
     let container_tarfile = archive_path.to_string_lossy().to_string();
 
-    let targz_content = std::fs::read(&container_tarfile).expect("could not read tar");
+    let targz_content = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        {
+            let enc = GzEncoder::new(&mut buf, Compression::default());
+            let mut tar = tar::Builder::new(enc);
+            tar.append_dir_all(".", &base_path)
+                .context("failed to append to tar")?;
+            tar.into_inner()
+                .context("failed to finish tar")?
+                .finish()
+                .context("failed to finish gzip encoder")?;
+        }
+        std::fs::remove_dir_all(&base_path)
+            .with_context(|| format!("failed to remove results directory {}", base_path.display()))?;
+        Ok(buf)
+    })
+    .await??;
 
     debug!("Read {} bytes of tar", targz_content.len());
-    // Remove the source directory after tar creation
-    std::fs::remove_dir_all(&base_path)
-        .with_context(|| format!("failed to remove results directory {}", base_path.display()))?;
 
     let copy_to_host: JoinHandle<()> = host_executor.spawn_in_host_ns(async move {
-        // Write tar.gz to host
         tokio::fs::write(&container_tarfile, targz_content)
             .await
             .expect("could not write tar to host");
