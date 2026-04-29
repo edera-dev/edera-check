@@ -32,3 +32,5 @@ clap = { version = "4.6", features = ["derive"] }
 console = "0.16"
 bytesize = "2.3"
 dmidecode = "1.0"
+nftables = "0.6"
+rtnetlink = "0.21"

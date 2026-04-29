@@ -38,6 +38,10 @@ impl SystemRecorder {
             self.common.record_slabinfo().boxed(),
             self.common.record_mounts().boxed(),
             self.common.record_mountinfo().boxed(),
+            self.common.record_nftables_ruleset().boxed(),
+            self.common.record_links().boxed(),
+            self.common.record_routes().boxed(),
+            self.common.record_neighbours().boxed(),
         ])
         .await;
 
