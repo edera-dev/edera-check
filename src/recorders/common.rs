@@ -30,7 +30,12 @@ impl CommonSystemRecorder {
 
         let output = match self
             .host_executor
-            .spawn_in_host_ns(async move { Command::new(cmd).args(tool_args).output() })
+            .spawn_in_host_ns(async move {
+                tokio::process::Command::new(cmd)
+                    .args(tool_args)
+                    .output()
+                    .await
+            })
             .await
         {
             Ok(output) => output,
