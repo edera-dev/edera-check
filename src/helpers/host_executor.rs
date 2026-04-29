@@ -66,6 +66,7 @@ impl HostNamespaceExecutor {
 
             Builder::new_multi_thread()
                 .thread_name(format!("pid-{target_pid}-executor-threadset"))
+                .enable_io()
                 .build()
                 .expect("could not spawn pid-{target_pid} threadset")
         })
