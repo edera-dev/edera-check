@@ -1,3 +1,4 @@
+mod collect_cmd;
 mod postinstall_cmd;
 mod preinstall_cmd;
 
@@ -82,12 +83,25 @@ struct PostinstallArgs {
     report_dir: Option<String>,
 }
 
+#[derive(Args)]
+struct CollectArgs {
+    /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
+    #[arg(short = 'd', long)]
+    report_dir: Option<String>,
+}
+
 #[derive(Subcommand)]
 enum Commands {
-    /// Run before installing Edera to validate hardware/host installation readiness.
+    #[command(
+        about = "Run before installing Edera to validate hardware/host installation readiness.\nAlso collects a system information snapshot."
+    )]
     Preinstall(PreinstallArgs),
-    /// Run after installing Edera to validate workload readiness.
+    #[command(
+        about = "Run after installing Edera to validate workload readiness.\nAlso collects a system information snapshot."
+    )]
     Postinstall(PostinstallArgs),
+    #[command(about = "Run after installing Edera to collect a system information snapshot.")]
+    Collect(CollectArgs),
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
@@ -120,6 +134,7 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        Commands::Collect(args) => collect_cmd::do_collect(args.report_dir).await,
     }
 }
 
