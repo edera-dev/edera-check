@@ -154,8 +154,9 @@ async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecut
                 .finish()
                 .context("failed to finish gzip encoder")?;
         }
-        std::fs::remove_dir_all(&base_path)
-            .with_context(|| format!("failed to remove results directory {}", base_path.display()))?;
+        std::fs::remove_dir_all(&base_path).with_context(|| {
+            format!("failed to remove results directory {}", base_path.display())
+        })?;
         Ok(buf)
     })
     .await??;
