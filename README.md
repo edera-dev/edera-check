@@ -15,10 +15,11 @@ docker run \
   --pull always \
   --pid host \
   --privileged \
+  -t \
   ghcr.io/edera-dev/edera-check:stable preinstall
 ```
 
-`podman` et al should also work.
+`podman` et al should also work. `-t` is optional for TTY color.
 
 ### Install static binary via `curl`
 
