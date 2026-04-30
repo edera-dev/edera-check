@@ -62,6 +62,16 @@ Run this on a system that has been booted into an Edera installation to validate
 
 ---
 
+### Generate system report
+
+```bash
+sudo edera-check collect
+```
+
+Run this on a system that has been booted into an Edera installation to collect a system report, including logs and other useful troubleshooting information.
+
+---
+
 ## Example Output
 
 ```text
