@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.19](https://github.com/edera-dev/edera-check/compare/v0.2.18...v0.2.19) - 2026-04-30
+
+### Other
+
+- Docker needs a TTY for le pretty colours ([#126](https://github.com/edera-dev/edera-check/pull/126))
+- Update images digests ([#121](https://github.com/edera-dev/edera-check/pull/121))
+- Bump the cargo-updates group across 1 directory with 2 updates ([#120](https://github.com/edera-dev/edera-check/pull/120))
+- Add `collect` subcommand that only runs postinstall debug collection ([#112](https://github.com/edera-dev/edera-check/pull/112))
+- Share sysinfo recorders that are common across both preinstall and postinstall (i.e. many of them) ([#124](https://github.com/edera-dev/edera-check/pull/124))
+- Catch Ubuntu's `snap`-based Docker runtime ([#118](https://github.com/edera-dev/edera-check/pull/118))
+- Bump the cargo-updates group with 2 updates ([#114](https://github.com/edera-dev/edera-check/pull/114))
+
 ## [0.2.18](https://github.com/edera-dev/edera-check/compare/v0.2.17...v0.2.18) - 2026-04-17
 
 ### Other
