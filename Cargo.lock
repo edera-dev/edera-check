@@ -249,7 +249,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "edera-check"
-version = "0.2.19"
+version = "0.2.20"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -263,7 +263,7 @@ dependencies = [
  "futures",
  "log",
  "nftables",
- "nix 0.31.2",
+ "nix 0.31.3",
  "procfs",
  "rtnetlink",
  "sysinfo",
