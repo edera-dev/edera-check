@@ -30,7 +30,12 @@ impl CommonSystemRecorder {
 
         let output = match self
             .host_executor
-            .spawn_in_host_ns(async move { Command::new(cmd).args(tool_args).output() })
+            .spawn_in_host_ns(async move {
+                tokio::process::Command::new(cmd)
+                    .args(tool_args)
+                    .output()
+                    .await
+            })
             .await
         {
             Ok(output) => output,
@@ -315,6 +320,145 @@ impl CommonSystemRecorder {
         self.record_file(PathBuf::from("/proc/self/mountinfo").as_ref())
             .await
             .expect("/proc/self/mountinfo not found")
+    }
+
+    /// Records network link state for all interfaces.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// ip -d link show
+    /// ```
+    pub async fn record_links(&self) -> CheckResult {
+        const NAME: &str = "Captured network links";
+        match self
+            .host_executor
+            .spawn_in_host_ns(async {
+                use futures::TryStreamExt as _;
+                let (connection, handle, _) =
+                    rtnetlink::new_connection().map_err(|e| e.to_string())?;
+                tokio::spawn(connection);
+                let links: Vec<_> = handle
+                    .link()
+                    .get()
+                    .execute()
+                    .try_collect()
+                    .await
+                    .map_err(|e: rtnetlink::Error| e.to_string())?;
+                Ok::<String, String>(
+                    links
+                        .iter()
+                        .map(|l| format!("{l:#?}"))
+                        .collect::<Vec<_>>()
+                        .join("\n\n"),
+                )
+            })
+            .await
+        {
+            Ok(Ok(text)) => CheckResult::new_with_output(NAME, Passed, Some(text)),
+            Ok(Err(e)) => CheckResult::new(NAME, Skipped(e)),
+            Err(e) => CheckResult::new(NAME, Skipped(e.to_string())),
+        }
+    }
+
+    /// Records IPv4 and IPv6 routes from all routing tables.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// ip route show && ip -6 route show
+    /// ```
+    pub async fn record_routes(&self) -> CheckResult {
+        const NAME: &str = "Captured network routes";
+        match self
+            .host_executor
+            .spawn_in_host_ns(async {
+                use futures::TryStreamExt as _;
+                let (connection, handle, _) =
+                    rtnetlink::new_connection().map_err(|e| e.to_string())?;
+                tokio::spawn(connection);
+                // AF_UNSPEC (the default) returns all routes for all families,
+                // including both IPv4 and IPv6.
+                let routes: Vec<_> = handle
+                    .route()
+                    .get(rtnetlink::packet_route::route::RouteMessage::default())
+                    .execute()
+                    .try_collect()
+                    .await
+                    .map_err(|e: rtnetlink::Error| e.to_string())?;
+                Ok::<String, String>(
+                    routes
+                        .iter()
+                        .map(|r| format!("{r:#?}"))
+                        .collect::<Vec<_>>()
+                        .join("\n\n"),
+                )
+            })
+            .await
+        {
+            Ok(Ok(text)) => CheckResult::new_with_output(NAME, Passed, Some(text)),
+            Ok(Err(e)) => CheckResult::new(NAME, Skipped(e)),
+            Err(e) => CheckResult::new(NAME, Skipped(e.to_string())),
+        }
+    }
+
+    /// Records neighbour (ARP/NDP) table entries for all interfaces.
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// ip neigh show
+    /// ```
+    pub async fn record_neighbours(&self) -> CheckResult {
+        const NAME: &str = "Captured network neighbours";
+        match self
+            .host_executor
+            .spawn_in_host_ns(async {
+                use futures::TryStreamExt as _;
+                let (connection, handle, _) =
+                    rtnetlink::new_connection().map_err(|e| e.to_string())?;
+                tokio::spawn(connection);
+                let neighbours: Vec<_> = handle
+                    .neighbours()
+                    .get()
+                    .execute()
+                    .try_collect()
+                    .await
+                    .map_err(|e: rtnetlink::Error| e.to_string())?;
+                Ok::<String, String>(
+                    neighbours
+                        .iter()
+                        .map(|n| format!("{n:#?}"))
+                        .collect::<Vec<_>>()
+                        .join("\n\n"),
+                )
+            })
+            .await
+        {
+            Ok(Ok(text)) => CheckResult::new_with_output(NAME, Passed, Some(text)),
+            Ok(Err(e)) => CheckResult::new(NAME, Skipped(e)),
+            Err(e) => CheckResult::new(NAME, Skipped(e.to_string())),
+        }
+    }
+
+    /// Records the complete nftables ruleset as JSON, covering all address families
+    /// (ip, ip6, inet, arp, bridge, netdev).
+    ///
+    /// Manual equivalent:
+    /// ```sh
+    /// nft -j list ruleset
+    /// ```
+    pub async fn record_nftables_ruleset(&self) -> CheckResult {
+        const NAME: &str = "Captured nftables ruleset";
+
+        match self
+            .host_executor
+            .spawn_in_host_ns(async {
+                nftables::helper::get_current_ruleset_raw(None::<&str>, std::iter::empty::<&str>())
+            })
+            .await
+        {
+            Ok(Ok(json)) => CheckResult::new_with_output(NAME, Passed, Some(json)),
+            Ok(Err(e)) => CheckResult::new(NAME, Skipped(e.to_string())),
+            Err(e) => CheckResult::new(NAME, Skipped(e.to_string())),
+        }
     }
 
     async fn current_kernel_version(&self) -> Result<String> {
