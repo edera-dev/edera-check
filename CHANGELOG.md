@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.20](https://github.com/edera-dev/edera-check/compare/v0.2.19...v0.2.20) - 2026-05-20
+
+### Other
+
+- Use journalctl export format ([#133](https://github.com/edera-dev/edera-check/pull/133))
+- Capture links/route table/neighbor table/nftables contents for v4/v6 ([#125](https://github.com/edera-dev/edera-check/pull/125))
+- Bump the cargo-updates group across 1 directory with 2 updates ([#131](https://github.com/edera-dev/edera-check/pull/131))
+- Update images digests ([#127](https://github.com/edera-dev/edera-check/pull/127))
+
 ## [0.2.19](https://github.com/edera-dev/edera-check/compare/v0.2.18...v0.2.19) - 2026-04-30
 
 ### Other
