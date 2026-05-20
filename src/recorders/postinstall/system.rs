@@ -101,7 +101,9 @@ impl SystemRecorder {
     /// journalctl -u protect-daemon -o export
     /// ```
     pub async fn record_daemon_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u protect-daemon -o export").await
+        self.common
+            .run_tool("journalctl -u protect-daemon -o export")
+            .await
     }
 
     /// Records the `protect-cri` journalctl log.
@@ -111,7 +113,9 @@ impl SystemRecorder {
     /// journalctl -u protect-cri -o export
     /// ```
     pub async fn record_cri_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u protect-cri -o export").await
+        self.common
+            .run_tool("journalctl -u protect-cri -o export")
+            .await
     }
 
     /// Records the `protect-storage` journalctl log.
@@ -121,7 +125,9 @@ impl SystemRecorder {
     /// journalctl -u protect-storage -o export
     /// ```
     pub async fn record_storage_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u protect-storage -o export").await
+        self.common
+            .run_tool("journalctl -u protect-storage -o export")
+            .await
     }
 
     /// Records the `protect-network` journalctl log.
@@ -131,7 +137,9 @@ impl SystemRecorder {
     /// journalctl -u protect-network -o export
     /// ```
     pub async fn record_network_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u protect-network -o export").await
+        self.common
+            .run_tool("journalctl -u protect-network -o export")
+            .await
     }
 
     /// Records the `containerd` journalctl log.
@@ -141,7 +149,9 @@ impl SystemRecorder {
     /// journalctl -u containerd -o export
     /// ```
     pub async fn record_containerd_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u containerd -o export").await
+        self.common
+            .run_tool("journalctl -u containerd -o export")
+            .await
     }
 
     /// Records the `oxenstored` journalctl log.
@@ -151,7 +161,9 @@ impl SystemRecorder {
     /// journalctl -u oxenstored -o export
     /// ```
     pub async fn record_oxenstored_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u oxenstored -o export").await
+        self.common
+            .run_tool("journalctl -u oxenstored -o export")
+            .await
     }
 
     /// Records the `kubelet` journalctl log.
@@ -161,7 +173,9 @@ impl SystemRecorder {
     /// journalctl -u kubelet -o export
     /// ```
     pub async fn record_kubelet_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u kubelet -o export").await
+        self.common
+            .run_tool("journalctl -u kubelet -o export")
+            .await
     }
 
     /// Records the current boot kernel journalctl log.
@@ -206,7 +220,9 @@ impl SystemRecorder {
     /// journalctl -u protect-preinit -o export
     /// ```
     pub async fn record_preinit_logs(&self) -> CheckResult {
-        self.common.run_tool("journalctl -u protect-preinit -o export").await
+        self.common
+            .run_tool("journalctl -u protect-preinit -o export")
+            .await
     }
 
     /// Records the Edera Protect daemon configuration.
