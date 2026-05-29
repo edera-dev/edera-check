@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -34,7 +34,7 @@ jobs:
           private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
 
       - name: markdownlint
-        uses: step-security/action-markdownlint@7c5273c5bd9d67d29ea1d2b0974c26b994595be7
+        uses: step-security/action-markdownlint@435ee62f0cde940687410a1a0456c29e97b70129
         with:
           GITHUB_TOKEN: "${{ steps.generate-token.outputs.token }}"
           reporter: github-pr-review
