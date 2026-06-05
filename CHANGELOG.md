@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.21](https://github.com/edera-dev/edera-check/compare/v0.2.20...v0.2.21) - 2026-06-05
+
+### Other
+
+- Update images digests ([#137](https://github.com/edera-dev/edera-check/pull/137))
+- Bump the cargo-updates group across 1 directory with 3 updates ([#142](https://github.com/edera-dev/edera-check/pull/142))
+
 ## [0.2.20](https://github.com/edera-dev/edera-check/compare/v0.2.19...v0.2.20) - 2026-05-20
 
 ### Other
