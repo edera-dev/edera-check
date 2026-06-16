@@ -25,7 +25,7 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.2.0
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4.2.0
       with:
         persist-credentials: false
 
@@ -36,7 +36,7 @@ jobs:
         app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
         private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
 
-    - uses: chainguard-dev/digestabot@afe360aa3b0c29d88844138e8fa0349384398967 # a110b65f3d4742d56b5b2b2306de6e2e54306724
+    - uses: chainguard-dev/digestabot@33d0b78e580aa0c83fe188eb3dfad6611b662479 # a110b65f3d4742d56b5b2b2306de6e2e54306724
       with:
         token: "${{ steps.generate-token.outputs.token }}"
         signoff: true
