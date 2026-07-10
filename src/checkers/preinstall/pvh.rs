@@ -1,6 +1,7 @@
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
+    cpu::{extract_cpu_vendor, extract_flags},
     host_executor::HostNamespaceExecutor,
 };
 use anyhow::{Result, bail};
@@ -306,26 +307,4 @@ impl CheckGroup for PVHChecks {
     fn category(&self) -> CheckGroupCategory {
         CheckGroupCategory::Optional("PVH feature may not be available on this system".into())
     }
-}
-
-fn extract_cpu_vendor(cpuinfo: &str) -> String {
-    for line in cpuinfo.lines() {
-        if line.starts_with("vendor_id")
-            && let Some(value) = line.split(':').nth(1)
-        {
-            return value.trim().to_string();
-        }
-    }
-    String::from("Unknown")
-}
-
-fn extract_flags(cpuinfo: &str) -> String {
-    for line in cpuinfo.lines() {
-        if line.starts_with("flags")
-            && let Some(value) = line.split(':').nth(1)
-        {
-            return value.trim().to_string();
-        }
-    }
-    String::new()
 }
