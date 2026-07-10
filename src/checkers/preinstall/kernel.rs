@@ -65,34 +65,7 @@ impl KernelChecks {
         let required_modules: Vec<String> =
             REQUIRED_MODULES.iter().map(|s| s.to_string()).collect();
 
-        // Search builtin modules
-        let remaining = match khelper::find_builtins(&self.host_executor, &required_modules).await {
-            Ok(r) => r,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(format!("getting kernel builtins {e}")));
-            }
-        };
-
-        // Search loaded modules
-        let remaining = match khelper::find_loaded(&self.host_executor, &remaining).await {
-            Ok(r) => r,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
-            }
-        };
-
-        // Search loadable modules (present in modules.dep but not yet loaded)
-        let remaining = match khelper::find_loadable(&self.host_executor, &remaining).await {
-            Ok(r) => r,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(format!("getting kernel modules {e}")));
-            }
-        };
-        if !remaining.is_empty() {
-            return CheckResult::new(&name, Failed(format!("missing {:?}", remaining)));
-        }
-
-        CheckResult::new(&name, Passed)
+        khelper::check_modules(name, &self.host_executor, &required_modules).await
     }
 }
 

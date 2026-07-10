@@ -1,4 +1,8 @@
-use crate::helpers::host_executor::HostNamespaceExecutor;
+use crate::helpers::{
+    CheckResult,
+    CheckResultValue::{Errored, Failed, Passed},
+    host_executor::HostNamespaceExecutor,
+};
 
 use anyhow::{Result, bail};
 use log::debug;
@@ -121,4 +125,55 @@ pub async fn find_loadable(
         }
     }
     Ok(modules_to_find)
+}
+
+/// Try to check if a group of modules exist on a system through checking builtins,
+/// loaded, then loadable modules. This function is gonna be called by a check identified
+/// by parent_check_name
+pub async fn check_modules(
+    parent_check_name: String,
+    host_executor: &HostNamespaceExecutor,
+    required_modules: &[String],
+) -> CheckResult {
+    // Search builtin modules
+    let remaining = match find_builtins(host_executor, required_modules).await {
+        Ok(r) => r,
+        Err(e) => {
+            return CheckResult::new(
+                &parent_check_name,
+                Errored(format!("getting kernel builtins {e}")),
+            );
+        }
+    };
+
+    // Search loaded modules
+    let remaining = match find_loaded(host_executor, &remaining).await {
+        Ok(r) => r,
+        Err(e) => {
+            return CheckResult::new(
+                &parent_check_name,
+                Errored(format!("getting kernel modules {e}")),
+            );
+        }
+    };
+
+    // another namespace yet those checks should run in the host namespace
+    // Search loadable modules (present in modules.dep but not yet loaded)
+    let remaining = match find_loadable(host_executor, &remaining).await {
+        Ok(r) => r,
+        Err(e) => {
+            return CheckResult::new(
+                &parent_check_name,
+                Errored(format!("getting kernel modules {e}")),
+            );
+        }
+    };
+    if !remaining.is_empty() {
+        return CheckResult::new(
+            &parent_check_name,
+            Failed(format!("missing {:?}", remaining)),
+        );
+    }
+
+    CheckResult::new(&parent_check_name, Passed)
 }
