@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
@@ -9,7 +10,8 @@ use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
 use log::{debug, error, warn};
 use std::{
-    fs::File,
+    arch::asm,
+    fs::{self, File},
     io::{Read, Seek, SeekFrom},
     path::Path,
     process::Command,
@@ -29,7 +31,6 @@ pub struct PVHChecks {
     host_executor: HostNamespaceExecutor,
 }
 
-#[cfg(target_arch = "x86_64")]
 impl PVHChecks {
     pub fn new(host_executor: HostNamespaceExecutor) -> Self {
         PVHChecks { host_executor }
@@ -86,6 +87,8 @@ impl PVHChecks {
     /// grep -m1 '^flags' /proc/cpuinfo | grep -qw svm && echo "svm present"
     /// rdmsr 0xC0010114  # bit 4 = SVMDIS; must be 0
     /// ```
+    ///
+    #[cfg(target_arch = "x86_64")]
     async fn check_virtualization(&self) -> CheckResult {
         let name = String::from("PVH Support");
 
@@ -107,6 +110,38 @@ impl PVHChecks {
                 error!("Error: {}", e);
                 CheckResult::new(&name, Errored(e.to_string()))
             }
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    async fn check_virtualization(&self) -> CheckResult {
+        // On aarch64, the cpu features are available through a model specific
+        // register called ID_AA64PFR0_EL1. This register can be read normally from
+        // userspacen (EL0) despite the EL1 prefix.
+        // The value may be inaccurate if this is ran from a VM.
+        let reg = read_id_aa64pfr0_el1();
+        // Hardware virtualization is encoded in the [11:8], shift the entire register
+        // value by 8 bits and AND it with 0b1111 to get only the relevant bits
+        let el2 = (reg >> 8) & 0xF;
+
+        match el2 {
+            0x0 => CheckResult {
+                name: NAME.to_string(),
+                result: Failed("No El2, hardware virtualization isn't supported".to_string()),
+                output_to_record: None,
+            },
+            // Treat 0x1 (support for 64 bit CPUs) and 0x2 (support for 64 and 32 bit) both
+            // as success markers.
+            0x1 | 0x2 => CheckResult {
+                name: NAME.to_string(),
+                result: Passed,
+                output_to_record: None,
+            },
+            other => CheckResult {
+                name: NAME.to_string(),
+                result: Failed(format!("Unexpected value for el2 {}", other)),
+                output_to_record: None,
+            },
         }
     }
 
@@ -263,22 +298,19 @@ impl PVHChecks {
     }
 }
 
-// No-op for other archs
-// TODO(bml) arm64 PVH??
-#[cfg(not(target_arch = "x86_64"))]
-impl PVHChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        PVHChecks { host_executor }
+#[inline(always)]
+fn read_id_aa64pfr0_el1() -> u64 {
+    let value: u64;
+    unsafe {
+        asm!(
+            "mrs {0}, ID_AA64PFR0_EL1",
+            out(reg) value,
+            // This assembly won't access memory, won't modify any CPU flags,
+            // and doesn't do stack allocation
+            options(nomem, preserves_flags, nostack)
+        );
     }
-
-    pub async fn run_all(&self) -> CheckGroupResult {
-        use crate::helpers::CheckResultValue::Skipped;
-        CheckGroupResult {
-            name: NAME.to_string(),
-            result: Skipped("not supported on this arch".into()),
-            results: vec![],
-        }
-    }
+    value
 }
 
 #[async_trait]
