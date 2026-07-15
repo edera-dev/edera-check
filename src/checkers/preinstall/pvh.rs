@@ -1,7 +1,7 @@
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
-    cpu::{extract_cpu_vendor, extract_flags},
+    cpu::{extract_cpu_vendor, extract_flags, read_cpuinfo},
     host_executor::HostNamespaceExecutor,
 };
 use anyhow::{Result, bail};
@@ -9,7 +9,6 @@ use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
 use log::{debug, error, warn};
 use std::{
-    fs,
     fs::File,
     io::{Read, Seek, SeekFrom},
     path::Path,
@@ -112,11 +111,7 @@ impl PVHChecks {
     }
 
     async fn discover_cpu_virtualization(&self) -> Result<VirtStatus> {
-        let cpuinfo = self
-            .host_executor
-            .spawn_in_host_ns(async { fs::read_to_string("/proc/cpuinfo") })
-            .await??;
-
+        let cpuinfo = read_cpuinfo(&self.host_executor).await?;
         let cpu_vendor = extract_cpu_vendor(&cpuinfo);
         let flags = extract_flags(&cpuinfo);
 

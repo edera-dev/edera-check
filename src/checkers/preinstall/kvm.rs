@@ -1,5 +1,4 @@
 use log::debug;
-use std::fs;
 use std::path::Path;
 use std::result::Result::Ok;
 
@@ -64,28 +63,15 @@ impl KvmChecks {
         let name = String::from("Host has necessary kernel modules");
         let mut required_modules: Vec<String> = vec!["vhost_vsock".to_string()];
 
+        let cpuinfo = match cpu::read_cpuinfo(&self.host_executor).await {
+            Ok(info) => info,
+            Err(e) => {
+                return CheckResult::new(&name, Errored(e.to_string()));
+            }
+        };
+
         // get the cpu vendor because based on who it is we will be checking for a different
         // kvm module
-        let cpuinfo_res = match self
-            .host_executor
-            .spawn_in_host_ns(async { fs::read_to_string("/proc/cpuinfo") })
-            .await
-        {
-            Ok(info) => info,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(e.to_string()));
-            }
-        };
-
-        // We need to match twice so we clarify whether the error was a JoinError
-        // or an error from fs::read_to_string
-        let cpuinfo = match cpuinfo_res {
-            Ok(info) => info,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(e.to_string()));
-            }
-        };
-
         let cpu_vendor = cpu::extract_cpu_vendor(&cpuinfo);
 
         match cpu_vendor.as_str() {
