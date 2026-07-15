@@ -34,6 +34,13 @@ enum PreinstallAction {
     ListChecks,
 }
 
+#[derive(Default, Clone, Debug, clap::ValueEnum)]
+enum BaseHypervisor {
+    #[default]
+    Xen,
+    Kvm,
+}
+
 #[derive(Subcommand)]
 enum PostinstallAction {
     /// List available check groups and their IDs.
@@ -52,6 +59,10 @@ struct PreinstallArgs {
     /// Collect information and configuration snapshot of current system (default true)
     #[arg(short, long, default_value_t = true)]
     record_hostinfo: bool,
+
+    /// Which hypervisor to run checks against
+    #[arg(long, default_value = "xen")]
+    hypervisor: BaseHypervisor,
 
     /// Run only selected checks, instead of default behavior of running all.
     /// Will override all other check enablement flags.
@@ -120,6 +131,7 @@ async fn main() -> Result<()> {
                 args.byo_kernel,
                 args.record_hostinfo,
                 args.only_checks,
+                args.hypervisor,
                 args.report_dir,
             )
             .await

@@ -1,3 +1,4 @@
+pub mod cpu;
 pub mod host_executor;
 pub mod kernel;
 pub mod services;

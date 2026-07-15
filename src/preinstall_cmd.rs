@@ -1,9 +1,11 @@
 use edera_check::checkers::preinstall::{
-    byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, numa::NUMAChecks,
-    pvh::PVHChecks, system::SystemChecks,
+    byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, kvm::KvmChecks,
+    numa::NUMAChecks, pvh::PVHChecks, system::SystemChecks,
 };
 
-use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
+use crate::{
+    BaseHypervisor, booted_under_edera, create_base_path, create_gzip_from, write_group_report,
+};
 use anyhow::Result;
 use console::style;
 
@@ -23,6 +25,7 @@ pub async fn do_preinstall(
     byo_kernel: bool,
     record_hostinfo: bool,
     only_checks: Vec<String>,
+    run_checks_for: BaseHypervisor,
     report_dir: Option<String>,
 ) -> Result<()> {
     // If we are in a privileged container running in the host pid namespace,
@@ -32,13 +35,26 @@ pub async fn do_preinstall(
     // this is effectively a silent no-op.
     let host_executor = HostNamespaceExecutor::new();
 
-    let mut groups: Vec<Box<dyn CheckGroup>> = vec![
-        Box::new(SystemChecks::new(host_executor.clone())),
-        Box::new(PVHChecks::new(host_executor.clone())),
-        Box::new(KernelChecks::new(host_executor.clone())),
-        Box::new(IOMMUChecks::new(host_executor.clone())),
-        Box::new(NUMAChecks::new(host_executor.clone())),
-    ];
+    // a vector of boxed implementors of CheckGroup. a trait that represents a group of checks
+    // for a particular category of attributes
+    let mut groups: Vec<Box<dyn CheckGroup>> = match run_checks_for {
+        BaseHypervisor::Kvm => {
+            vec![
+                Box::new(PVHChecks::new(host_executor.clone())),
+                Box::new(KvmChecks::new(host_executor.clone())),
+                Box::new(IOMMUChecks::new(host_executor.clone())),
+            ]
+        }
+        BaseHypervisor::Xen => {
+            vec![
+                Box::new(SystemChecks::new(host_executor.clone())),
+                Box::new(PVHChecks::new(host_executor.clone())),
+                Box::new(KernelChecks::new(host_executor.clone())),
+                Box::new(IOMMUChecks::new(host_executor.clone())),
+                Box::new(NUMAChecks::new(host_executor.clone())),
+            ]
+        }
+    };
 
     if byo_kernel {
         groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));
