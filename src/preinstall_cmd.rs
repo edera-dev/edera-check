@@ -1,6 +1,6 @@
 use edera_check::checkers::preinstall::{
     byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, kvm::KvmChecks,
-    numa::NUMAChecks, pvh::PVHChecks, system::SystemChecks,
+    license::LicenseChecks, numa::NUMAChecks, pvh::PVHChecks, system::SystemChecks,
 };
 
 use crate::{
@@ -27,6 +27,7 @@ pub async fn do_preinstall(
     only_checks: Vec<String>,
     run_checks_for: BaseHypervisor,
     report_dir: Option<String>,
+    skip_license_check: bool,
 ) -> Result<()> {
     // If we are in a privileged container running in the host pid namespace,
     // this creates a tokio thread pool that runs stuff outside of the container context,
@@ -55,6 +56,12 @@ pub async fn do_preinstall(
             ]
         }
     };
+
+    if !skip_license_check {
+        groups.push(Box::new(LicenseChecks::new()));
+    } else {
+        println!("Skipping license check (--skip-license-check)");
+    }
 
     if byo_kernel {
         groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));

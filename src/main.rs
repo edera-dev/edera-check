@@ -64,6 +64,10 @@ struct PreinstallArgs {
     #[arg(long, default_value = "xen")]
     hypervisor: BaseHypervisor,
 
+    /// Skip running license check. If true, EDERA_LICENSE_KEY is not needed in environment. (default false)
+    #[arg(long, default_value_t = false)]
+    skip_license_check: bool,
+
     /// Run only selected checks, instead of default behavior of running all.
     /// Will override all other check enablement flags.
     #[arg(short, long, value_delimiter = ',')]
@@ -103,7 +107,7 @@ struct CollectArgs {
 #[derive(Subcommand)]
 enum Commands {
     #[command(
-        about = "Run before installing Edera to validate hardware/host installation readiness.\nAlso collects a system information snapshot."
+        about = "Run before installing Edera to validate hardware/host installation readiness and license legitimacy.\nAlso collects a system information snapshot."
     )]
     Preinstall(PreinstallArgs),
     #[command(
@@ -133,6 +137,7 @@ async fn main() -> Result<()> {
                 args.only_checks,
                 args.hypervisor,
                 args.report_dir,
+                args.skip_license_check,
             )
             .await
         }
