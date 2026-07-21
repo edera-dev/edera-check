@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.22](https://github.com/edera-dev/edera-check/compare/v0.2.21...v0.2.22) - 2026-07-21
+
+### Added
+
+- Add KVM based checks
+
+### Other
+
+- Update images digests ([#145](https://github.com/edera-dev/edera-check/pull/145))
+- Bump the cargo-updates group across 1 directory with 7 updates ([#157](https://github.com/edera-dev/edera-check/pull/157))
+
 ## [0.2.21](https://github.com/edera-dev/edera-check/compare/v0.2.20...v0.2.21) - 2026-06-05
 
 ### Other
