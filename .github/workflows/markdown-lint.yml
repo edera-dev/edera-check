@@ -32,6 +32,9 @@ jobs:
         with:
           app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
           private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
+          # Scope to only what reviewdog's github-pr-review reporter needs:
+          # posting review comments on the PR.
+          permission-pull-requests: write
 
       - name: markdownlint
         uses: step-security/action-markdownlint@7eff996c965b6b4a8575f7971d970fc40479c321
