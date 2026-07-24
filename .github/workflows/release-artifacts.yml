@@ -183,6 +183,8 @@ jobs:
         with:
           app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
           private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
+          # Scope to what `gh release upload` needs: write release assets.
+          permission-contents: write
 
       - name: 'Upload release artifacts with retry'
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0

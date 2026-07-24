@@ -35,6 +35,10 @@ jobs:
       with:
         app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
         private-key: "${{ secrets.EDERA_CULTIVATION_APP_PRIVATE_KEY }}"
+        # Scope to what digestabot needs: push the update branch (contents)
+        # and open the PR (pull-requests).
+        permission-contents: write
+        permission-pull-requests: write
 
     - uses: chainguard-dev/digestabot@33d0b78e580aa0c83fe188eb3dfad6611b662479 # a110b65f3d4742d56b5b2b2306de6e2e54306724
       with:
