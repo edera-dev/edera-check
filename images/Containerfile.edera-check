@@ -1,4 +1,4 @@
-FROM ghcr.io/edera-dev/cross-base-linux-musl:latest@sha256:9b3c229f269a43d704b8d711cb73dcd1b8257dc6b0232c19b63987c2bddf828c AS build
+FROM ghcr.io/edera-dev/cross-base-linux-musl:latest@sha256:67a2d8f0727cfb21cf3b4cb519517bd8da2d2c5a966548a0efa30ee895b1352d AS build
 
 ENV TARGET_LIBC=musl TARGET_VENDOR=unknown DISABLE_CROSS_RS=1
 
