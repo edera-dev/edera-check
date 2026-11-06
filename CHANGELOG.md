@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.23](https://github.com/edera-dev/edera-check/compare/v0.2.22...v0.2.23) - 2026-11-06
+
+### Fixed
+
+- *(numa)* properly capture NUMA info ([#191](https://github.com/edera-dev/edera-check/pull/191))
+- *(kvm)* fix issues running on KVM hypervisor and stream journal writes ([#190](https://github.com/edera-dev/edera-check/pull/190))
+
+### Other
+
+- Update images digests ([#171](https://github.com/edera-dev/edera-check/pull/171))
+- Bump the cargo-updates group across 1 directory with 12 updates ([#184](https://github.com/edera-dev/edera-check/pull/184))
+
 ## [0.2.22](https://github.com/edera-dev/edera-check/compare/v0.2.21...v0.2.22) - 2026-07-21
 
 ### Added
