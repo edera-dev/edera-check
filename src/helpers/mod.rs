@@ -66,7 +66,29 @@ pub struct CheckResult {
 
     /// output_to_record is an optional field used to return output that should be recorded into an
     /// information bundle
-    pub output_to_record: Option<String>,
+    pub output_to_record: Option<RecordedOutput>,
+}
+
+#[derive(Default, Clone, Debug, PartialEq, clap::ValueEnum)]
+pub enum BaseHypervisor {
+    #[default]
+    Xen,
+    Kvm,
+}
+
+pub enum RecordedOutput {
+    Text(String),
+    /// The check already wrote its output to its report file, at `report_file_name(name)`.
+    Streamed,
+}
+
+/// Flattens a check name into the file name its output is recorded under. Script Checks
+/// default to the path of the script as the name so we need to sanitize.
+pub fn report_file_name(check_name: &str) -> String {
+    check_name
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace(".", "")
 }
 
 impl CheckResult {
@@ -82,7 +104,15 @@ impl CheckResult {
         Self {
             name: name.to_string(),
             result,
-            output_to_record,
+            output_to_record: output_to_record.map(RecordedOutput::Text),
+        }
+    }
+
+    pub fn new_streamed(name: &str, result: CheckResultValue) -> Self {
+        Self {
+            name: name.to_string(),
+            result,
+            output_to_record: Some(RecordedOutput::Streamed),
         }
     }
 }

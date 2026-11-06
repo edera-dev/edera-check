@@ -1,5 +1,5 @@
 use crate::helpers::{
-    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
+    BaseHypervisor, CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
     kernel as khelper,
@@ -14,7 +14,7 @@ const NAME: &str = "Postinstall Kernel Checks";
 
 // Stuff we expect to be available under an Edera host kernel,
 // or a supported BYO kernel.
-const REQUIRED_MODULES: &[&str] = &[
+const XEN_REQUIRED_MODULES: &[&str] = &[
     "nf_tables",
     "xen_evtchn",
     "xen-privcmd",
@@ -25,17 +25,28 @@ const REQUIRED_MODULES: &[&str] = &[
     "xen-gntalloc",
 ];
 
+// The KVM modules are checked by the `kvm` group.
+const KVM_REQUIRED_MODULES: &[&str] = &["nf_tables"];
+
 const KVER_FLOOR_PATCH: u16 = 0;
 const KVER_FLOOR_MINOR: u8 = 15;
 const KVER_FLOOR_MAJOR: u8 = 5;
 
 pub struct PostinstallKernelChecks {
     host_executor: HostNamespaceExecutor,
+    required_modules: &'static [&'static str],
 }
 
 impl PostinstallKernelChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        PostinstallKernelChecks { host_executor }
+    pub fn new(host_executor: HostNamespaceExecutor, hypervisor: &BaseHypervisor) -> Self {
+        let required_modules = match hypervisor {
+            BaseHypervisor::Xen => XEN_REQUIRED_MODULES,
+            BaseHypervisor::Kvm => KVM_REQUIRED_MODULES,
+        };
+        PostinstallKernelChecks {
+            host_executor,
+            required_modules,
+        }
     }
 
     /// Run all the checkers asynchronously, then
@@ -84,7 +95,7 @@ impl PostinstallKernelChecks {
         }
     }
 
-    /// Checks that all required Xen and networking modules are available as built-in,
+    /// Checks that all required Xen (on Xen hosts) and networking modules are available as built-in,
     /// currently loaded, or loadable (present in `modules.dep`) for the running kernel.
     ///
     /// Manual equivalent:
@@ -100,8 +111,11 @@ impl PostinstallKernelChecks {
     async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
 
-        let required_modules: Vec<String> =
-            REQUIRED_MODULES.iter().map(|s| s.to_string()).collect();
+        let required_modules: Vec<String> = self
+            .required_modules
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
 
         // Search builtin modules
         let remaining = match khelper::find_builtins(&self.host_executor, &required_modules).await {

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
+use std::path::Path;
 
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult,
@@ -16,9 +17,10 @@ pub struct SystemRecorder {
 }
 
 impl SystemRecorder {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
+    /// `report_path` is the bundle directory that holds every group's report directory.
+    pub fn new(host_executor: HostNamespaceExecutor, report_path: &Path) -> Self {
         SystemRecorder {
-            common: CommonSystemRecorder::new(host_executor),
+            common: CommonSystemRecorder::new(host_executor, report_path.join(GROUP_IDENTIFIER)),
         }
     }
 

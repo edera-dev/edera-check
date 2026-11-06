@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
@@ -14,13 +14,27 @@ const NAME: &str = "Postinstall System Info Recorder";
 
 pub struct SystemRecorder {
     common: CommonSystemRecorder,
+    journal_since: String,
 }
 
 impl SystemRecorder {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
+    /// `report_path` is the bundle directory that holds every group's report directory.
+    /// `journal_since` bounds every journal export, as a `journalctl --since` value.
+    pub fn new(
+        host_executor: HostNamespaceExecutor,
+        report_path: &Path,
+        journal_since: String,
+    ) -> Self {
         SystemRecorder {
-            common: CommonSystemRecorder::new(host_executor),
+            common: CommonSystemRecorder::new(host_executor, report_path.join(GROUP_IDENTIFIER)),
+            journal_since,
         }
+    }
+
+    async fn run_journal_export(&self, tool: &str) -> CheckResult {
+        self.common
+            .run_tool(tool, &["--since", &self.journal_since])
+            .await
     }
 
     /// Run all the recorders asynchronously, then
@@ -85,7 +99,9 @@ impl SystemRecorder {
     /// protect-ctl host hv-console
     /// ```
     pub async fn record_hv_console(&self) -> CheckResult {
-        self.common.run_tool("protect-ctl host hv-console").await
+        self.common
+            .run_tool("protect-ctl host hv-console", &[])
+            .await
     }
 
     /// Records the Xen hypervisor debug state via the protect-ctl tool.
@@ -95,18 +111,19 @@ impl SystemRecorder {
     /// protect-ctl host hv-debug-info
     /// ```
     pub async fn record_hv_debug_info(&self) -> CheckResult {
-        self.common.run_tool("protect-ctl host hv-debug-info").await
+        self.common
+            .run_tool("protect-ctl host hv-debug-info", &[])
+            .await
     }
 
     /// Records the `protect-daemon` journalctl log.
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-daemon -o export
+    /// journalctl -u protect-daemon -o export --since <journal-since>
     /// ```
     pub async fn record_daemon_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u protect-daemon -o export")
+        self.run_journal_export("journalctl -u protect-daemon -o export")
             .await
     }
 
@@ -114,11 +131,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-cri -o export
+    /// journalctl -u protect-cri -o export --since <journal-since>
     /// ```
     pub async fn record_cri_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u protect-cri -o export")
+        self.run_journal_export("journalctl -u protect-cri -o export")
             .await
     }
 
@@ -126,11 +142,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-storage -o export
+    /// journalctl -u protect-storage -o export --since <journal-since>
     /// ```
     pub async fn record_storage_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u protect-storage -o export")
+        self.run_journal_export("journalctl -u protect-storage -o export")
             .await
     }
 
@@ -138,11 +153,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-network -o export
+    /// journalctl -u protect-network -o export --since <journal-since>
     /// ```
     pub async fn record_network_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u protect-network -o export")
+        self.run_journal_export("journalctl -u protect-network -o export")
             .await
     }
 
@@ -150,11 +164,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u containerd -o export
+    /// journalctl -u containerd -o export --since <journal-since>
     /// ```
     pub async fn record_containerd_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u containerd -o export")
+        self.run_journal_export("journalctl -u containerd -o export")
             .await
     }
 
@@ -162,11 +175,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u oxenstored -o export
+    /// journalctl -u oxenstored -o export --since <journal-since>
     /// ```
     pub async fn record_oxenstored_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u oxenstored -o export")
+        self.run_journal_export("journalctl -u oxenstored -o export")
             .await
     }
 
@@ -174,11 +186,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u kubelet -o export
+    /// journalctl -u kubelet -o export --since <journal-since>
     /// ```
     pub async fn record_kubelet_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u kubelet -o export")
+        self.run_journal_export("journalctl -u kubelet -o export")
             .await
     }
 
@@ -186,10 +197,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -b -o export
+    /// journalctl -b -o export --since <journal-since>
     /// ```
     pub async fn record_boot_log(&self) -> CheckResult {
-        self.common.run_tool("journalctl -b -o export").await
+        self.run_journal_export("journalctl -b -o export").await
     }
 
     /// Records the Xen hypervisor capability string.
@@ -199,21 +210,25 @@ impl SystemRecorder {
     /// cat /sys/hypervisor/properties/capabilities
     /// ```
     pub async fn record_xen_capabilities(&self) -> CheckResult {
-        self.common
-            .record_file(PathBuf::from("/sys/hypervisor/properties/capabilities").as_ref())
-            .await
-            .expect("/sys/hypervisor/properties/capabilities not found")
+        let file = "/sys/hypervisor/properties/capabilities";
+        match self.common.record_file(&PathBuf::from(file)).await {
+            Some(result) => result,
+            // Absent on KVM hosts.
+            None => CheckResult::new(
+                &format!("Captured {file}"),
+                Skipped("file not found".to_string()),
+            ),
+        }
     }
 
     /// Records the `protect-orchestrator` journalctl log.
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-orchestrator -o export
+    /// journalctl -u protect-orchestrator -o export --since <journal-since>
     /// ```
     pub async fn record_orchestrator_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u protect-orchestrator -o export")
+        self.run_journal_export("journalctl -u protect-orchestrator -o export")
             .await
     }
 
@@ -221,11 +236,10 @@ impl SystemRecorder {
     ///
     /// Manual equivalent:
     /// ```sh
-    /// journalctl -u protect-preinit -o export
+    /// journalctl -u protect-preinit -o export --since <journal-since>
     /// ```
     pub async fn record_preinit_logs(&self) -> CheckResult {
-        self.common
-            .run_tool("journalctl -u protect-preinit -o export")
+        self.run_journal_export("journalctl -u protect-preinit -o export")
             .await
     }
 

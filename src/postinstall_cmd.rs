@@ -2,15 +2,18 @@ use edera_check::checkers::postinstall::{
     guest_type::GuestTypeChecks, kernel::PostinstallKernelChecks, kube::KubeChecks,
     services::ServiceChecks, system::SystemChecks,
 };
+use edera_check::checkers::preinstall::kvm::KvmChecks;
 
-use crate::{booted_under_edera, create_base_path, create_gzip_from, write_group_report};
+use crate::{
+    booted_under_edera, create_base_path, create_gzip_from, report_base_path, write_group_report,
+};
 use edera_check::recorders::postinstall::system::SystemRecorder as postrecorder;
 
 use anyhow::Result;
 use console::style;
 
 use edera_check::helpers::{
-    CheckGroup, CheckGroupCategory,
+    BaseHypervisor, CheckGroup, CheckGroupCategory,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
@@ -23,6 +26,7 @@ pub async fn do_postinstall(
     record_hostinfo: bool,
     only_checks: Vec<String>,
     report_dir: Option<String>,
+    journal_since: String,
 ) -> Result<()> {
     // If we are in a privileged container running in the host pid namespace,
     // this creates a tokio thread pool that runs stuff outside of the container context,
@@ -31,16 +35,47 @@ pub async fn do_postinstall(
     // this is effectively a silent no-op.
     let host_executor = HostNamespaceExecutor::new();
 
+    let hostname = host_executor
+        .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
+        .await?;
+
+    let base_dir = if let Some(dir) = report_dir {
+        PathBuf::from(dir)
+    } else {
+        env::temp_dir()
+    };
+
+    let base_path = report_base_path(base_dir, hostname.trim(), "postinstall");
+
+    let installed = match booted_under_edera(&host_executor).await {
+        Ok(hypervisor) => hypervisor,
+        Err(e) => {
+            bail!("Error: {}", e);
+        }
+    };
+    // Listing does not need an install, and then shows the Xen groups.
+    let hypervisor = installed.clone().unwrap_or_default();
+
     let mut groups: Vec<Box<dyn CheckGroup>> = vec![
-        Box::new(GuestTypeChecks::new(host_executor.clone())),
-        Box::new(PostinstallKernelChecks::new(host_executor.clone())),
-        Box::new(ServiceChecks::new(host_executor.clone())),
+        match hypervisor {
+            BaseHypervisor::Xen => Box::new(GuestTypeChecks::new(host_executor.clone())),
+            BaseHypervisor::Kvm => Box::new(KvmChecks::new(host_executor.clone())),
+        },
+        Box::new(PostinstallKernelChecks::new(
+            host_executor.clone(),
+            &hypervisor,
+        )),
+        Box::new(ServiceChecks::new(host_executor.clone(), hypervisor)),
         Box::new(KubeChecks::new(host_executor.clone())),
         Box::new(SystemChecks::new(host_executor.clone())),
     ];
 
     if record_hostinfo {
-        groups.push(Box::new(postrecorder::new(host_executor.clone())));
+        groups.push(Box::new(postrecorder::new(
+            host_executor.clone(),
+            &base_path,
+            journal_since,
+        )));
     }
 
     if list_only {
@@ -80,21 +115,15 @@ pub async fn do_postinstall(
 
     // See if we are booted under Edera. If not, error out and suggest `preinstall`
     // as the command to run.
-    match booted_under_edera(&host_executor).await {
-        Ok(true) => {}
-        Ok(false) => {
-            println!(
-                "{}",
-                style("Edera not installed. Run `edera-check preinstall` instead.")
-                    .red()
-                    .bold()
-            );
-            process::exit(1);
-        }
-        Err(e) => {
-            bail!("Error: {}", e);
-        }
-    };
+    if installed.is_none() {
+        println!(
+            "{}",
+            style("Edera not installed. Run `edera-check preinstall` instead.")
+                .red()
+                .bold()
+        );
+        process::exit(1);
+    }
 
     if record_hostinfo {
         println!(
@@ -119,18 +148,7 @@ pub async fn do_postinstall(
     let mut required_groups_result = Passed;
     let mut all_groups_result = Passed;
 
-    let hostname = host_executor
-        .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
-        .await?;
-
-    let base_dir = if let Some(dir) = report_dir {
-        PathBuf::from(dir)
-    } else {
-        env::temp_dir()
-    };
-
-    let base_path = create_base_path(base_dir, hostname.trim(), "postinstall")
-        .map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
+    create_base_path(&base_path).map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
     // Run each check group
     for group in groups {
         println!(
