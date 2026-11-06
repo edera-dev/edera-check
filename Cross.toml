@@ -1,11 +1,11 @@
 [target.aarch64-unknown-linux-gnu]
-image = "ghcr.io/edera-dev/cross-base-linux-gnu:latest@sha256:3989cb241fa9f5ea287d9ea5456eeaa5c0ddc3502b54763a708b7a71c9b38549"
+image = "ghcr.io/edera-dev/cross-base-linux-gnu:latest@sha256:64cdec2d9c8cf309ea143e12b359047147ea7e43e7198138320305a626c18876"
 
 [target.aarch64-unknown-linux-musl]
-image = "ghcr.io/edera-dev/cross-base-linux-musl:latest@sha256:9b3c229f269a43d704b8d711cb73dcd1b8257dc6b0232c19b63987c2bddf828c"
+image = "ghcr.io/edera-dev/cross-base-linux-musl:latest@sha256:5f70018d7d2e320d9eebf99ee0391c3d7bc1af6272cce7c03a2fba7ce09e979b"
 
 [target.x86_64-unknown-linux-gnu]
-image = "ghcr.io/edera-dev/cross-base-linux-gnu:latest@sha256:3989cb241fa9f5ea287d9ea5456eeaa5c0ddc3502b54763a708b7a71c9b38549"
+image = "ghcr.io/edera-dev/cross-base-linux-gnu:latest@sha256:64cdec2d9c8cf309ea143e12b359047147ea7e43e7198138320305a626c18876"
 
 [target.x86_64-unknown-linux-musl]
-image = "ghcr.io/edera-dev/cross-base-linux-musl:latest@sha256:9b3c229f269a43d704b8d711cb73dcd1b8257dc6b0232c19b63987c2bddf828c"
+image = "ghcr.io/edera-dev/cross-base-linux-musl:latest@sha256:5f70018d7d2e320d9eebf99ee0391c3d7bc1af6272cce7c03a2fba7ce09e979b"
