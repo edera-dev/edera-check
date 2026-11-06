@@ -140,32 +140,22 @@ impl CheckGroupResult {
         let s = format!("{}: {}", name, result);
         match result {
             CheckResultValue::Passed => println!("{} {}", CHECK, style(s).green().bold()),
-            CheckResultValue::Failed(_) => {
-                if let CheckGroupCategory::Optional(opt) = &category {
-                    println!(
-                        "{} {}\n{} {} [Optional]",
-                        WARN,
-                        style(opt).yellow().dim(),
-                        WARN,
-                        style(s).yellow().dim()
-                    )
-                } else {
+            CheckResultValue::Failed(_) | CheckResultValue::Errored(_) => match &category {
+                CheckGroupCategory::Optional(opt) => println!(
+                    "{} {}\n{} {} [Optional]",
+                    WARN,
+                    style(opt).yellow().dim(),
+                    WARN,
+                    style(s).yellow().dim()
+                ),
+                // Advisory groups never fail the run, so they must not look like they did.
+                CheckGroupCategory::Advisory => {
+                    println!("{} {} [Advisory]", WARN, style(s).yellow().dim())
+                }
+                CheckGroupCategory::Required => {
                     println!("{} {}", ERROR, style(s).bright().red().bold())
                 }
-            }
-            CheckResultValue::Errored(_) => {
-                if let CheckGroupCategory::Optional(opt) = &category {
-                    println!(
-                        "{} {}\n{} {} [Optional]",
-                        WARN,
-                        style(opt).yellow().dim(),
-                        WARN,
-                        style(s).yellow().dim()
-                    )
-                } else {
-                    println!("{} {}", ERROR, style(s).red().bright().bold())
-                }
-            }
+            },
             CheckResultValue::Skipped(reason) => println!(
                 "{} {} - {}",
                 WARN,

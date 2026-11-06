@@ -94,7 +94,7 @@ Running Group PVH Checks [Optional] - PVH capability checks
     • PVH Support: Passed
 ✅ PVH Checks: Passed
 Running Group NUMA Checks [Advisory] - NUMA capability checks
-    • IOMMU Support: Passed
+    • NUMA Node Count: Passed
 ✅ NUMA Checks: Passed
 Running Group System Info Recorder [Advisory] - Record system information for reporting purposes
     • Captured lspci -vvv: Passed

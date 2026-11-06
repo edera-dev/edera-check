@@ -44,21 +44,25 @@ impl NUMAChecks {
         }
     }
 
-    /// Checks that the system has at most one NUMA node.
-    /// Multiple NUMA nodes are not currently supported.
+    /// Records how many NUMA nodes the system has.
     ///
     /// Manual equivalent:
     /// ```sh
-    /// ls /sys/devices/system/node | grep -c '^node[0-9]'  # must be <= 1
+    /// ls /sys/devices/system/node | grep -c '^node[0-9]'
     /// ```
     async fn check_numa(&self) -> CheckResult {
-        let name = String::from("IOMMU Support");
+        let name = String::from("NUMA Node Count");
 
         match self
             .host_executor
             .spawn_in_host_ns(async {
-                std::fs::read_dir("/sys/devices/system/node")
-                    .unwrap()
+                let entries = match std::fs::read_dir("/sys/devices/system/node") {
+                    Ok(entries) => entries,
+                    // Only kernels built with CONFIG_NUMA create this directory.
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(1),
+                    Err(e) => return Err(e),
+                };
+                Ok(entries
                     .filter_map(|e| e.ok())
                     .filter(|e| {
                         let name = e.file_name();
@@ -67,17 +71,14 @@ impl NUMAChecks {
                             .map(|rest| rest.chars().all(|c| c.is_ascii_digit()))
                             .unwrap_or(false)
                     })
-                    .count()
+                    .count())
             })
             .await
         {
-            Ok(count) => {
-                if count <= 1 {
-                    CheckResult::new(&name, Passed)
-                } else {
-                    CheckResult::new(&name, Failed(format!("{} NUMA nodes detected", count)))
-                }
+            Ok(Ok(count)) => {
+                CheckResult::new_with_output(&name, Passed, Some(format!("NUMA nodes: {count}")))
             }
+            Ok(Err(e)) => CheckResult::new(&name, Errored(e.to_string())),
             Err(e) => {
                 debug!("Error: {}", e);
                 CheckResult::new(&name, Errored(e.to_string()))
