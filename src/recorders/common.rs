@@ -2,38 +2,66 @@ use anyhow::{Result, bail};
 use flate2::read::GzDecoder;
 use procfs::Current;
 use std::{
+    fs,
     io::Read,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 use crate::helpers::{
     CheckResult,
     CheckResultValue::{Errored, Passed, Skipped},
     host_executor::HostNamespaceExecutor,
+    report_file_name,
 };
 
 pub struct CommonSystemRecorder {
     host_executor: HostNamespaceExecutor,
+    report_dir: PathBuf,
 }
 
 impl CommonSystemRecorder {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        CommonSystemRecorder { host_executor }
+    /// `report_dir` is the directory the group's report files are written to.
+    pub fn new(host_executor: HostNamespaceExecutor, report_dir: PathBuf) -> Self {
+        CommonSystemRecorder {
+            host_executor,
+            report_dir,
+        }
     }
 
-    /// Runs the given command + args in host namespaces and captures the results.
-    pub async fn run_tool(&self, tool: &str) -> CheckResult {
+    /// Runs the given command + args in host namespaces and streams its stdout, unmodified,
+    /// to the check's report file. `extra_args` are appended but left out of the check name.
+    pub async fn run_tool(&self, tool: &str, extra_args: &[&str]) -> CheckResult {
         let name = format!("Captured {tool}");
         let mut tool_args: Vec<String> = tool.split(" ").map(|s| s.to_string()).collect();
         let cmd = tool_args.remove(0);
+        tool_args.extend(extra_args.iter().map(|s| s.to_string()));
+
+        // Opened here, not in the host namespace closure, so the file lands in the report
+        // directory as this process's mount namespace sees it.
+        let report_file = self.report_dir.join(report_file_name(&name));
+        let stdout = match fs::create_dir_all(&self.report_dir)
+            .and_then(|_| fs::File::create(&report_file))
+        {
+            Ok(f) => f,
+            Err(e) => {
+                return CheckResult::new(
+                    &name,
+                    Errored(format!("failed to create {}: {e}", report_file.display())),
+                );
+            }
+        };
 
         let output = match self
             .host_executor
             .spawn_in_host_ns(async move {
+                // Not `.output()`, which would replace our stdout with a pipe.
                 tokio::process::Command::new(cmd)
                     .args(tool_args)
-                    .output()
+                    .stdout(stdout)
+                    .stderr(Stdio::piped())
+                    .spawn()?
+                    .wait_with_output()
                     .await
             })
             .await
@@ -52,8 +80,7 @@ impl CommonSystemRecorder {
             return CheckResult::new(&name, Skipped(error_message.to_string()));
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        CheckResult::new_with_output(&name, Passed, Some(stdout))
+        CheckResult::new_streamed(&name, Passed)
     }
 
     /// Captures the content of a given file on the host.
@@ -106,7 +133,7 @@ impl CommonSystemRecorder {
     /// lspci -vvv
     /// ```
     pub async fn record_lspci(&self) -> CheckResult {
-        self.run_tool("lspci -vvv").await
+        self.run_tool("lspci -vvv", &[]).await
     }
 
     /// Records DMI/SMBIOS hardware information (BIOS, board, chassis, CPU, memory).

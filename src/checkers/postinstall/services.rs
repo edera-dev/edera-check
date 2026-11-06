@@ -3,7 +3,7 @@ use futures::{FutureExt, future::join_all};
 use log::debug;
 
 use crate::helpers::{
-    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
+    BaseHypervisor, CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
     services as svchelpers,
@@ -14,22 +14,27 @@ const NAME: &str = "Service Status Checks";
 
 pub struct ServiceChecks {
     host_executor: HostNamespaceExecutor,
+    hypervisor: BaseHypervisor,
 }
 
 impl ServiceChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        ServiceChecks { host_executor }
+    pub fn new(host_executor: HostNamespaceExecutor, hypervisor: BaseHypervisor) -> Self {
+        ServiceChecks {
+            host_executor,
+            hypervisor,
+        }
     }
 
     /// Run all the recorders asynchronously, then
     /// join and collect the results.
     pub async fn run_all(&self) -> CheckGroupResult {
-        let results = join_all([
-            self.check_daemon().boxed(),
-            self.check_storage().boxed(),
-            self.check_network().boxed(),
-        ])
-        .await;
+        let mut checks = vec![self.check_daemon().boxed()];
+        // protect-storage serves 9p for Xen zones; KVM zones use virtiofsd instead.
+        if self.hypervisor == BaseHypervisor::Xen {
+            checks.push(self.check_storage().boxed());
+        }
+        checks.push(self.check_network().boxed());
+        let results = join_all(checks).await;
 
         let mut group_result = Passed;
         for res in results.iter() {

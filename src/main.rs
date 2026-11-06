@@ -2,9 +2,12 @@ mod collect_cmd;
 mod postinstall_cmd;
 mod preinstall_cmd;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand};
 use console::{Emoji, style};
-use edera_check::helpers::{CheckGroup, CheckGroupResult, host_executor::HostNamespaceExecutor};
+use edera_check::helpers::{
+    BaseHypervisor, CheckGroup, CheckGroupResult, RecordedOutput,
+    host_executor::HostNamespaceExecutor, report_file_name,
+};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -34,13 +37,6 @@ enum PreinstallAction {
     ListChecks,
 }
 
-#[derive(Default, Clone, Debug, clap::ValueEnum)]
-enum BaseHypervisor {
-    #[default]
-    Xen,
-    Kvm,
-}
-
 #[derive(Subcommand)]
 enum PostinstallAction {
     /// List available check groups and their IDs.
@@ -57,7 +53,8 @@ struct PreinstallArgs {
     byo_kernel: bool,
 
     /// Collect information and configuration snapshot of current system (default true)
-    #[arg(short, long, default_value_t = true)]
+    #[arg(short, long, default_value_t = true, action = ArgAction::Set, num_args = 0..=1,
+          require_equals = true, default_missing_value = "true")]
     record_hostinfo: bool,
 
     /// Which hypervisor to run checks against
@@ -80,7 +77,8 @@ struct PostinstallArgs {
     action: Option<PostinstallAction>,
 
     /// Collect information and configuration snapshot of current system (default true)
-    #[arg(short, long, default_value_t = true)]
+    #[arg(short, long, default_value_t = true, action = ArgAction::Set, num_args = 0..=1,
+          require_equals = true, default_missing_value = "true")]
     record_hostinfo: bool,
 
     /// Run only selected checks, instead of default behavior of running all.
@@ -91,6 +89,9 @@ struct PostinstallArgs {
     /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
     #[arg(short = 'd', long)]
     report_dir: Option<String>,
+
+    #[command(flatten)]
+    journal: JournalArgs,
 }
 
 #[derive(Args)]
@@ -98,6 +99,16 @@ struct CollectArgs {
     /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
     #[arg(short = 'd', long)]
     report_dir: Option<String>,
+
+    #[command(flatten)]
+    journal: JournalArgs,
+}
+
+#[derive(Args)]
+struct JournalArgs {
+    /// Only record journal entries since this time, in any `journalctl --since` format
+    #[arg(long, default_value = "-24h", allow_hyphen_values = true)]
+    journal_since: String,
 }
 
 #[derive(Subcommand)]
@@ -142,10 +153,13 @@ async fn main() -> Result<()> {
                 args.record_hostinfo,
                 args.only_checks,
                 args.report_dir,
+                args.journal.journal_since,
             )
             .await
         }
-        Commands::Collect(args) => collect_cmd::do_collect(args.report_dir).await,
+        Commands::Collect(args) => {
+            collect_cmd::do_collect(args.report_dir, args.journal.journal_since).await
+        }
     }
 }
 
@@ -191,19 +205,22 @@ async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecut
     Ok(copy_to_host.await?)
 }
 
-fn create_base_path(base_dir: PathBuf, hostname: &str, stage: &str) -> Result<PathBuf> {
+fn report_base_path(base_dir: PathBuf, hostname: &str, stage: &str) -> PathBuf {
     let now = Utc::now();
 
-    let base_path = base_dir.join(format!(
+    base_dir.join(format!(
         "edera-{}-report-{}-{}",
         stage,
         hostname,
         now.format("%Y%m%d-%H%M%S")
-    ));
-    fs::create_dir_all(&base_path)
+    ))
+}
+
+fn create_base_path(base_path: &Path) -> Result<()> {
+    fs::create_dir_all(base_path)
         .with_context(|| format!("could not create {}", base_path.display()))?;
     debug!("Writing all files to {}", base_path.to_string_lossy());
-    Ok(base_path)
+    Ok(())
 }
 
 fn write_group_report(
@@ -215,17 +232,10 @@ fn write_group_report(
     fs::create_dir_all(&path).with_context(|| format!("could not create {}", path.display()))?;
 
     for check in result.results.iter() {
-        // Sanitize the name of the check into a flat file. Script Checks default to the path of
-        // the script as the name so we need to sanitize.
-        let name = check
-            .name
-            .replace(" ", "_")
-            .replace("/", "_")
-            .replace(".", "");
-
-        let path = path.join(name);
+        let path = path.join(report_file_name(&check.name));
         match check.output_to_record.as_ref() {
-            Some(text) => fs::write(&path, text),
+            Some(RecordedOutput::Text(text)) => fs::write(&path, text),
+            Some(RecordedOutput::Streamed) => Ok(()),
             None => fs::write(&path, format!("{}", check.result)),
         }
         .with_context(|| format!("failed to write to {}", path.display()))?;
@@ -233,14 +243,27 @@ fn write_group_report(
     Ok(())
 }
 
-async fn booted_under_edera(host_executor: &HostNamespaceExecutor) -> Result<bool> {
+/// Returns the hypervisor Edera runs on, picked the way protect-daemon picks its runtime: Xen
+/// when booted under Xen, otherwise KVM only if the KVM runtime was installed.
+async fn booted_under_edera(
+    host_executor: &HostNamespaceExecutor,
+) -> Result<Option<BaseHypervisor>> {
     host_executor
         .spawn_in_host_ns(async {
             if !Path::new("/var/lib/edera/protect/.install-completed").exists() {
-                return false;
+                return None;
             }
             let xen = Path::new("/sys/hypervisor/type");
-            xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen"
+            if xen.exists() && fs::read_to_string(xen).unwrap_or_default().trim() == "xen" {
+                return Some(BaseHypervisor::Xen);
+            }
+            [
+                "/usr/libexec/edera-protect/cloud-hypervisor",
+                "/usr/libexec/edera-protect/virtiofsd",
+            ]
+            .iter()
+            .all(|p| Path::new(p).exists())
+            .then_some(BaseHypervisor::Kvm)
         })
         .await
         .context("failed to check Edera boot status")
