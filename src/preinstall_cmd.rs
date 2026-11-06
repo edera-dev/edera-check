@@ -4,13 +4,13 @@ use edera_check::checkers::preinstall::{
 };
 
 use crate::{
-    BaseHypervisor, booted_under_edera, create_base_path, create_gzip_from, write_group_report,
+    booted_under_edera, create_base_path, create_gzip_from, report_base_path, write_group_report,
 };
 use anyhow::Result;
 use console::style;
 
 use edera_check::helpers::{
-    CheckGroup, CheckGroupCategory,
+    BaseHypervisor, CheckGroup, CheckGroupCategory,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
 };
@@ -34,6 +34,18 @@ pub async fn do_preinstall(
     // If we are in a regular old `sudo`'d binary running naked on the host,
     // this is effectively a silent no-op.
     let host_executor = HostNamespaceExecutor::new();
+
+    let hostname = host_executor
+        .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
+        .await?;
+
+    let base_dir = if let Some(dir) = report_dir {
+        PathBuf::from(dir)
+    } else {
+        env::temp_dir()
+    };
+
+    let base_path = report_base_path(base_dir, hostname.trim(), "preinstall");
 
     // a vector of boxed implementors of CheckGroup. a trait that represents a group of checks
     // for a particular category of attributes
@@ -61,7 +73,10 @@ pub async fn do_preinstall(
     }
 
     if record_hostinfo {
-        groups.push(Box::new(prerecorder::new(host_executor.clone())));
+        groups.push(Box::new(prerecorder::new(
+            host_executor.clone(),
+            &base_path,
+        )));
     }
 
     if list_only {
@@ -102,7 +117,7 @@ pub async fn do_preinstall(
     // See if we are already booted under Edera. If so, error out and suggest `postinstall`
     // as the command to run.
     match booted_under_edera(&host_executor).await {
-        Ok(true) => {
+        Ok(Some(_)) => {
             println!(
                 "{}",
                 style("Edera is already installed. Run `edera-check postinstall` instead.")
@@ -111,7 +126,7 @@ pub async fn do_preinstall(
             );
             process::exit(1);
         }
-        Ok(false) => (),
+        Ok(None) => (),
         Err(e) => {
             bail!("Error: {}", e);
         }
@@ -140,18 +155,7 @@ pub async fn do_preinstall(
     let mut required_groups_result = Passed;
     let mut all_groups_result = Passed;
 
-    let hostname = host_executor
-        .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
-        .await?;
-
-    let base_dir = if let Some(dir) = report_dir {
-        PathBuf::from(dir)
-    } else {
-        env::temp_dir()
-    };
-
-    let base_path = create_base_path(base_dir, hostname.trim(), "preinstall")
-        .map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
+    create_base_path(&base_path).map_err(|e| anyhow!("failed to create bundle base path: {e}"))?;
     // Run each check group
     for group in groups {
         println!(

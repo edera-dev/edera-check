@@ -17,17 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: true
 
       - name: generate cultivator token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: generate-token
         with:
           app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
@@ -37,7 +37,7 @@ jobs:
           permission-pull-requests: write
 
       - name: markdownlint
-        uses: step-security/action-markdownlint@7eff996c965b6b4a8575f7971d970fc40479c321
+        uses: step-security/action-markdownlint@c91b7c102591cac31fa35dbb9dfd6ab31da5e4fa
         with:
           GITHUB_TOKEN: "${{ steps.generate-token.outputs.token }}"
           reporter: github-pr-review
