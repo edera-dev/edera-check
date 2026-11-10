@@ -76,3 +76,29 @@ jobs:
 
       - name: 'cargo clippy'
         run: cargo clippy
+
+  image-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - { arch: x86_64, on: ubuntu-latest }
+        - { arch: aarch64, on: ubuntu-24.04-arm }
+    runs-on: "${{ matrix.platform.on }}"
+    name: 'Image build linux-${{ matrix.platform.arch }}'
+    steps:
+      - name: harden runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      # The release workflow builds this image, with its static musl binary, only when a
+      # release is published.
+      - name: docker build
+        run: docker build --file images/Containerfile.edera-check .

@@ -33,7 +33,7 @@ pub async fn do_postinstall(
     // directly on the host.
     // If we are in a regular old `sudo`'d binary running naked on the host,
     // this is effectively a silent no-op.
-    let host_executor = HostNamespaceExecutor::new();
+    let host_executor = HostNamespaceExecutor::new()?;
 
     let hostname = host_executor
         .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
@@ -135,11 +135,17 @@ pub async fn do_postinstall(
     // If only-checks is specified, only include checks that match the provided ID.
     if !only_checks.is_empty() {
         let valid_ids: HashSet<_> = groups.iter().map(|g| g.id().to_string()).collect();
-        only_checks.iter().for_each(|id| {
-            if !valid_ids.contains(id) {
-                println!("{} '{}'", style("Unknown Check:").yellow(), style(id).red());
-            }
-        });
+        let unknown: Vec<&str> = only_checks
+            .iter()
+            .filter(|id| !valid_ids.contains(*id))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            bail!(
+                "unknown check id: {}. Run `edera-check postinstall list-checks` for the valid checks",
+                unknown.join(", ")
+            );
+        }
         groups.retain(|group| only_checks.contains(&group.id().to_string()));
     }
 

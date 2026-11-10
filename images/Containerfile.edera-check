@@ -7,6 +7,6 @@ COPY . .
 RUN ./hack/build/cargo.sh build --release --bin edera-check
 RUN mv ./target/$(./hack/build/target.sh)/release/edera-check /usr/sbin
 
-FROM cgr.dev/chainguard/wolfi-base:latest
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:b7787f1d3f29dcfb48730372d3515391ac3b218723201a765c94949922676099
 ENTRYPOINT ["/usr/sbin/edera-check"]
 COPY --from=build /usr/sbin/edera-check /usr/sbin/edera-check

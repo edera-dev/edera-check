@@ -19,7 +19,6 @@ use std::{
     path::{Path, PathBuf},
     process,
 };
-use tokio::task::JoinHandle;
 
 static SPARKLE: Emoji = Emoji("✨", "[*]");
 
@@ -166,8 +165,8 @@ async fn main() -> Result<()> {
 async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecutor) -> Result<()> {
     let mut archive_path = base_path.clone();
     archive_path.set_extension("tar.gz");
-    let container_tarfile = archive_path.to_string_lossy().to_string();
 
+    let collected = base_path.clone();
     let targz_content = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
         let mut buf = Vec::new();
         {
@@ -180,29 +179,38 @@ async fn create_gzip_from(base_path: PathBuf, host_executor: HostNamespaceExecut
                 .finish()
                 .context("failed to finish gzip encoder")?;
         }
-        std::fs::remove_dir_all(&base_path).with_context(|| {
-            format!("failed to remove results directory {}", base_path.display())
-        })?;
         Ok(buf)
     })
     .await??;
 
     debug!("Read {} bytes of tar", targz_content.len());
 
-    let copy_to_host: JoinHandle<()> = host_executor.spawn_in_host_ns(async move {
-        tokio::fs::write(&container_tarfile, targz_content)
-            .await
-            .expect("could not write tar to host");
+    let host_archive = archive_path.clone();
+    host_executor
+        .spawn_in_host_ns(async move {
+            // The report directory was created in this process's mount namespace, which in
+            // a container is not the host's.
+            if let Some(parent) = host_archive.parent() {
+                tokio::fs::create_dir_all(parent)
+                    .await
+                    .with_context(|| format!("could not create {} on host", parent.display()))?;
+            }
+            tokio::fs::write(&host_archive, targz_content)
+                .await
+                .with_context(|| format!("could not write {} to host", host_archive.display()))
+        })
+        .await??;
 
-        println!(
-            "{} {} Report saved: {}",
-            SPARKLE,
-            style("All Done!").green(),
-            style(container_tarfile).cyan()
-        );
-    });
+    fs::remove_dir_all(&collected)
+        .with_context(|| format!("failed to remove results directory {}", collected.display()))?;
 
-    Ok(copy_to_host.await?)
+    println!(
+        "{} {} Report saved: {}",
+        SPARKLE,
+        style("All Done!").green(),
+        style(archive_path.display()).cyan()
+    );
+    Ok(())
 }
 
 fn report_base_path(base_dir: PathBuf, hostname: &str, stage: &str) -> PathBuf {
