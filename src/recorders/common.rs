@@ -85,6 +85,13 @@ impl CommonSystemRecorder {
 
     /// Captures the content of a given file on the host.
     pub async fn record_file(&self, file: &Path) -> Option<CheckResult> {
+        self.record_file_as(file, format!("Captured {}", file.display()))
+            .await
+    }
+
+    /// Captures the content of a given file on the host, under a check name that does not
+    /// follow from the path.
+    async fn record_file_as(&self, file: &Path, name: String) -> Option<CheckResult> {
         let local_file = file.to_path_buf();
 
         self.host_executor
@@ -92,7 +99,6 @@ impl CommonSystemRecorder {
                 if !local_file.exists() {
                     return None;
                 }
-                let name = format!("Captured {}", local_file.display());
 
                 let bytes = match tokio::fs::read(&local_file).await {
                     Ok(b) => b,
@@ -332,9 +338,14 @@ impl CommonSystemRecorder {
     /// cat /proc/mounts
     /// ```
     pub async fn record_mounts(&self) -> CheckResult {
-        self.record_file(PathBuf::from("/proc/mounts").as_ref())
-            .await
-            .expect("/proc/mounts not found")
+        // `/proc/mounts` follows `/proc/self`, which is the thread group leader, and the
+        // leader stays in the container's mount namespace.
+        self.record_file_as(
+            Path::new("/proc/thread-self/mounts"),
+            "Captured /proc/mounts".to_string(),
+        )
+        .await
+        .expect("/proc/thread-self/mounts not found")
     }
 
     /// Records detailed mount point information for the current process.
@@ -344,9 +355,12 @@ impl CommonSystemRecorder {
     /// cat /proc/self/mountinfo
     /// ```
     pub async fn record_mountinfo(&self) -> CheckResult {
-        self.record_file(PathBuf::from("/proc/self/mountinfo").as_ref())
-            .await
-            .expect("/proc/self/mountinfo not found")
+        self.record_file_as(
+            Path::new("/proc/thread-self/mountinfo"),
+            "Captured /proc/self/mountinfo".to_string(),
+        )
+        .await
+        .expect("/proc/thread-self/mountinfo not found")
     }
 
     /// Records network link state for all interfaces.

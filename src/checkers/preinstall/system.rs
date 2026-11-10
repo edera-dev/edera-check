@@ -1,6 +1,7 @@
 use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
+    disk::available_space,
     host_executor::HostNamespaceExecutor,
 };
 
@@ -8,7 +9,8 @@ use async_trait::async_trait;
 use bytesize::ByteSize;
 use futures::{FutureExt, future::join_all};
 use log::debug;
-use sysinfo::{Disks, System};
+use std::path::Path;
+use sysinfo::System;
 
 const GROUP_IDENTIFIER: &str = "system";
 const NAME: &str = "System Checks";
@@ -282,18 +284,17 @@ impl SystemChecks {
         let result = match self
             .host_executor
             .spawn_in_host_ns(async move {
-                let disks = Disks::new_with_refreshed_list();
-                match Self::available_space_for_path(&disks, &mount_path) {
-                    Some(avail) if avail >= free_thresh => Passed,
-                    Some(avail) => Failed(format!(
+                match available_space(Path::new(&mount_path)) {
+                    Ok(avail) if avail >= free_thresh => Passed,
+                    Ok(avail) => Failed(format!(
                         "{} has {} free, need at least {}",
                         mount_path,
                         ByteSize(avail),
                         ByteSize(free_thresh),
                     )),
-                    None => Failed(format!(
-                        "no mounted filesystem found covering {}",
-                        mount_path
+                    Err(e) => Errored(format!(
+                        "could not read free space for {}: {}",
+                        mount_path, e
                     )),
                 }
             })
@@ -303,24 +304,6 @@ impl SystemChecks {
             Err(e) => Errored(e.to_string()),
         };
         CheckResult::new(&name, result)
-    }
-
-    /// Finds available bytes for the filesystem that best covers `path`
-    fn available_space_for_path(disks: &Disks, path: &str) -> Option<u64> {
-        let target = std::path::Path::new(path);
-        disks
-            .iter()
-            .filter(|d| target.starts_with(d.mount_point()))
-            .max_by_key(|d| d.mount_point().as_os_str().len())
-            .map(|d| {
-                debug!(
-                    "Best mount for {}: {} ({} bytes available)",
-                    path,
-                    d.mount_point().display(),
-                    d.available_space()
-                );
-                d.available_space()
-            })
     }
 }
 
