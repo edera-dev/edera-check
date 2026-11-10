@@ -1,3 +1,4 @@
+use anyhow::{Context, Result, anyhow, bail};
 use nix::sched::{CloneFlags, setns, unshare};
 use std::fs::File;
 use std::os::unix::io::AsFd;
@@ -25,9 +26,12 @@ impl HostNamespaceExecutor {
     /// Creates a new tokio runtime running with the net/mount/pid/ipc/etc namespaces
     /// of the target pid. Note that if this is run from a pid namespace (e.g. a container without
     /// `--pid=host`/`hostPid: true` or equivalent) the PID provided here
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         if !Self::in_host_pid_namespace() {
-            panic!("Cannot create host namespace executor, not running in host pid namespace");
+            bail!(
+                "not running in the host PID namespace. In a container, add `--pid host` \
+                 (Kubernetes: `hostPID: true`)"
+            );
         }
         Self::runtime_in_target_process_namespaces(1)
     }
@@ -47,9 +51,9 @@ impl HostNamespaceExecutor {
             .spawn(f)
     }
 
-    fn runtime_in_target_process_namespaces(target_pid: u32) -> Self {
-        let rt = std::thread::spawn(move || {
-            unshare(CloneFlags::CLONE_FS).expect("Failed to unshare FS attributes");
+    fn runtime_in_target_process_namespaces(target_pid: u32) -> Result<Self> {
+        let rt = std::thread::spawn(move || -> Result<Runtime> {
+            unshare(CloneFlags::CLONE_FS).context("failed to unshare FS attributes")?;
             // Enter namespaces
             for (ns, flag) in &[
                 ("mnt", CloneFlags::CLONE_NEWNS),
@@ -58,24 +62,25 @@ impl HostNamespaceExecutor {
                 ("ipc", CloneFlags::CLONE_NEWIPC),
                 ("pid", CloneFlags::CLONE_NEWPID),
             ] {
-                let f = File::open(format!("/proc/{}/ns/{}", target_pid, ns))
-                    .expect("could not open pid {target_pid} ns file {ns}");
+                let f = File::open(format!("/proc/{target_pid}/ns/{ns}"))
+                    .with_context(|| format!("could not open pid {target_pid} ns file {ns}"))?;
                 setns(f.as_fd(), *flag)
-                    .unwrap_or_else(|_| panic!("could not setns for pid {target_pid} ns {ns}"));
+                    .with_context(|| format!("could not setns for pid {target_pid} ns {ns}"))?;
             }
 
             Builder::new_multi_thread()
                 .thread_name(format!("pid-{target_pid}-executor-threadset"))
                 .enable_io()
                 .build()
-                .expect("could not spawn pid-{target_pid} threadset")
+                .with_context(|| format!("could not spawn pid-{target_pid} threadset"))
         })
         .join()
-        .expect("could not create pid-{target_pid} executor");
+        .map_err(|_| anyhow!("pid-{target_pid} executor thread panicked"))?
+        .context("could not enter the host namespaces. In a container, add `--privileged`")?;
 
-        Self {
+        Ok(Self {
             host_rt: Some(Arc::new(rt)),
-        }
+        })
     }
 
     /// A truly dirty hack to figure out if we're running in the host's pid namespace or not.

@@ -7,7 +7,7 @@ use edera_check::helpers::{CheckGroup, host_executor::HostNamespaceExecutor};
 use std::{env, path::PathBuf};
 
 pub async fn do_collect(report_dir: Option<String>, journal_since: String) -> Result<()> {
-    let host_executor = HostNamespaceExecutor::new();
+    let host_executor = HostNamespaceExecutor::new()?;
 
     let hostname = host_executor
         .spawn_in_host_ns(async { std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap() })
