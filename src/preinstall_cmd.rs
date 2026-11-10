@@ -52,7 +52,7 @@ pub async fn do_preinstall(
     let mut groups: Vec<Box<dyn CheckGroup>> = match run_checks_for {
         BaseHypervisor::Kvm => {
             vec![
-                Box::new(PVHChecks::new(host_executor.clone())),
+                Box::new(PVHChecks::new(host_executor.clone(), BaseHypervisor::Kvm)),
                 Box::new(KvmChecks::new(host_executor.clone())),
                 Box::new(IOMMUChecks::new(host_executor.clone())),
             ]
@@ -60,7 +60,7 @@ pub async fn do_preinstall(
         BaseHypervisor::Xen => {
             vec![
                 Box::new(SystemChecks::new(host_executor.clone())),
-                Box::new(PVHChecks::new(host_executor.clone())),
+                Box::new(PVHChecks::new(host_executor.clone(), BaseHypervisor::Xen)),
                 Box::new(KernelChecks::new(host_executor.clone())),
                 Box::new(IOMMUChecks::new(host_executor.clone())),
                 Box::new(NUMAChecks::new(host_executor.clone())),

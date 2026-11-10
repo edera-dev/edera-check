@@ -1,5 +1,6 @@
 pub mod cpu;
 pub mod host_executor;
+pub mod iommu;
 pub mod kernel;
 pub mod services;
 
