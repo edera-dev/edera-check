@@ -2,11 +2,11 @@ use crate::helpers::{
     CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
+    iommu::hardware_iommu_problem,
 };
 use async_trait::async_trait;
 use futures::{FutureExt, future::join_all};
 use log::debug;
-use std::path::Path;
 
 const GROUP_IDENTIFIER: &str = "iommu";
 const NAME: &str = "IOMMU Checks";
@@ -45,7 +45,8 @@ impl IOMMUChecks {
         }
     }
 
-    /// Checks for an IOMMU by looking for the Intel VT-d (DMAR) or AMD-Vi (IVRS) ACPI tables.
+    /// Checks for an IOMMU that Xen can enable, from the Intel VT-d (DMAR) or AMD-Vi (IVRS)
+    /// ACPI tables and the CPU flags.
     ///
     /// Manual equivalent:
     /// ```sh
@@ -56,23 +57,9 @@ impl IOMMUChecks {
     async fn check_iommu(&self) -> CheckResult {
         let name = String::from("IOMMU Support");
 
-        match self
-            .host_executor
-            .spawn_in_host_ns(async {
-                if Path::new("/sys/firmware/acpi/tables/DMAR").exists() {
-                    debug!("Found Intel IOMMU");
-                    true
-                } else if Path::new("/sys/firmware/acpi/tables/IVRS").exists() {
-                    debug!("Found AMD IOMMU");
-                    true
-                } else {
-                    false
-                }
-            })
-            .await
-        {
-            Ok(true) => CheckResult::new(&name, Passed),
-            Ok(false) => CheckResult::new(&name, Failed("no hardware IOMMU detected".to_string())),
+        match hardware_iommu_problem(&self.host_executor).await {
+            Ok(None) => CheckResult::new(&name, Passed),
+            Ok(Some(problem)) => CheckResult::new(&name, Failed(problem)),
             Err(e) => {
                 debug!("Error: {}", e);
                 CheckResult::new(&name, Errored(e.to_string()))

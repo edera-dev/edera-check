@@ -1,8 +1,9 @@
 use crate::helpers::{
-    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
-    CheckResultValue::{Errored, Failed, Passed},
+    BaseHypervisor, CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
+    CheckResultValue::{self, Errored, Failed, Passed},
     cpu::{extract_cpu_vendor, extract_flags, read_cpuinfo},
     host_executor::HostNamespaceExecutor,
+    iommu::hardware_iommu_problem,
 };
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -27,12 +28,16 @@ enum VirtStatus {
 
 pub struct PVHChecks {
     host_executor: HostNamespaceExecutor,
+    hypervisor: BaseHypervisor,
 }
 
 #[cfg(target_arch = "x86_64")]
 impl PVHChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        PVHChecks { host_executor }
+    pub fn new(host_executor: HostNamespaceExecutor, hypervisor: BaseHypervisor) -> Self {
+        PVHChecks {
+            host_executor,
+            hypervisor,
+        }
     }
 
     /// Run all the checkers asynchronously, then
@@ -71,7 +76,8 @@ impl PVHChecks {
 
     /// Checks that hardware virtualization (Intel VT-x or AMD-V) is available and not
     /// disabled in firmware. Reads the CPU vendor from `/proc/cpuinfo`, then inspects
-    /// MSR registers to determine BIOS enablement state.
+    /// MSR registers to determine BIOS enablement state. On Xen, also requires a hardware
+    /// IOMMU, because Xen only boots dom0 as PVH when both are present.
     ///
     /// Manual equivalent (Intel — reads IA32_FEATURE_CONTROL MSR 0x3a):
     /// ```sh
@@ -91,23 +97,22 @@ impl PVHChecks {
 
         self.ensure_msr_modprobe().await;
 
-        match self.discover_cpu_virtualization().await {
-            Ok(VirtStatus::Enabled) | Ok(VirtStatus::CanBeEnabled) => {
-                debug!("Hardware Virtualization is enabled or can be enabled");
-                CheckResult::new(&name, Passed)
-            }
-            Ok(VirtStatus::Disabled) => {
-                debug!("Hardware Virtualization disabled");
-                CheckResult::new(
-                    &name,
-                    Failed(String::from("Hardware Virtualization Disabled")),
-                )
-            }
+        let virt = match self.discover_cpu_virtualization().await {
+            Ok(virt) => virt,
             Err(e) => {
                 error!("Error: {}", e);
-                CheckResult::new(&name, Errored(e.to_string()))
+                return CheckResult::new(&name, Errored(e.to_string()));
             }
-        }
+        };
+        let iommu_problem = match hardware_iommu_problem(&self.host_executor).await {
+            Ok(iommu_problem) => iommu_problem,
+            Err(e) => {
+                error!("Error: {}", e);
+                return CheckResult::new(&name, Errored(e.to_string()));
+            }
+        };
+
+        CheckResult::new(&name, pvh_support(virt, &self.hypervisor, iommu_problem))
     }
 
     async fn discover_cpu_virtualization(&self) -> Result<VirtStatus> {
@@ -263,12 +268,39 @@ impl PVHChecks {
     }
 }
 
+/// Xen only boots dom0 as PVH when it has both hardware virtualization and an IOMMU.
+#[cfg(target_arch = "x86_64")]
+fn pvh_support(
+    virt: VirtStatus,
+    hypervisor: &BaseHypervisor,
+    iommu_problem: Option<String>,
+) -> CheckResultValue {
+    match virt {
+        VirtStatus::Enabled | VirtStatus::CanBeEnabled => {
+            debug!("Hardware Virtualization is enabled or can be enabled");
+            match iommu_problem {
+                Some(problem) if *hypervisor == BaseHypervisor::Xen => {
+                    Failed(format!("hardware virtualization available, but {problem}"))
+                }
+                _ => Passed,
+            }
+        }
+        VirtStatus::Disabled => {
+            debug!("Hardware Virtualization disabled");
+            Failed(String::from("Hardware Virtualization Disabled"))
+        }
+    }
+}
+
 // No-op for other archs
 // TODO(bml) arm64 PVH??
 #[cfg(not(target_arch = "x86_64"))]
 impl PVHChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        PVHChecks { host_executor }
+    pub fn new(host_executor: HostNamespaceExecutor, hypervisor: BaseHypervisor) -> Self {
+        PVHChecks {
+            host_executor,
+            hypervisor,
+        }
     }
 
     pub async fn run_all(&self) -> CheckGroupResult {
@@ -301,5 +333,52 @@ impl CheckGroup for PVHChecks {
 
     fn category(&self) -> CheckGroupCategory {
         CheckGroupCategory::Optional("PVH feature may not be available on this system".into())
+    }
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod tests {
+    use super::*;
+
+    fn no_iommu() -> Option<String> {
+        Some("no hardware IOMMU detected".into())
+    }
+
+    #[test]
+    fn xen_pvh_needs_virtualization_and_iommu() {
+        use BaseHypervisor::Xen;
+        assert!(matches!(
+            pvh_support(VirtStatus::Enabled, &Xen, None),
+            Passed
+        ));
+        assert!(matches!(
+            pvh_support(VirtStatus::CanBeEnabled, &Xen, None),
+            Passed
+        ));
+        assert!(matches!(
+            pvh_support(VirtStatus::Enabled, &Xen, no_iommu()),
+            Failed(msg) if msg.contains("no hardware IOMMU detected")
+        ));
+        assert!(matches!(
+            pvh_support(VirtStatus::Disabled, &Xen, None),
+            Failed(msg) if msg.contains("Virtualization")
+        ));
+        assert!(matches!(
+            pvh_support(VirtStatus::Disabled, &Xen, no_iommu()),
+            Failed(msg) if msg.contains("Virtualization")
+        ));
+    }
+
+    #[test]
+    fn kvm_does_not_need_iommu() {
+        use BaseHypervisor::Kvm;
+        assert!(matches!(
+            pvh_support(VirtStatus::Enabled, &Kvm, no_iommu()),
+            Passed
+        ));
+        assert!(matches!(
+            pvh_support(VirtStatus::Disabled, &Kvm, None),
+            Failed(_)
+        ));
     }
 }
