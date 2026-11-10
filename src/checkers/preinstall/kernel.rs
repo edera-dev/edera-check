@@ -11,7 +11,11 @@ use futures::{FutureExt, future::join_all};
 const GROUP_IDENTIFIER: &str = "kernel";
 const NAME: &str = "Kernel Checks";
 // TODO (bml) assemble actual list
+#[cfg(target_arch = "x86_64")]
 const REQUIRED_MODULES: &[&str] = &["nf_tables", "msr"];
+// `msr` is an x86 module.
+#[cfg(not(target_arch = "x86_64"))]
+const REQUIRED_MODULES: &[&str] = &["nf_tables"];
 
 pub struct KernelChecks {
     host_executor: HostNamespaceExecutor,

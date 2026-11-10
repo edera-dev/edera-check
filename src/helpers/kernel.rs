@@ -26,6 +26,21 @@ pub async fn host_kver_above_floor(
     Ok(true)
 }
 
+/// The kernel treats `-` and `_` in a module name as the same character, and `/proc/modules`
+/// always prints `_`, while module files are often named with `-`.
+fn normalize_module_name(name: &str) -> String {
+    name.replace('-', "_")
+}
+
+/// Module name for one `modules.builtin` or `modules.dep` line, such as
+/// `kernel/drivers/xen/xen-evtchn.ko.xz: kernel/...`.
+fn module_name_from_line(line: &str) -> String {
+    let path = line.split(':').next().unwrap_or("");
+    let file = path.rsplit('/').next().unwrap_or("");
+    let stem = file.split(".ko").next().unwrap_or("");
+    normalize_module_name(stem)
+}
+
 /// Looks at builtins for kernel_version and compares that to the list of
 /// required modules.
 /// Returns a vec of everything from required_modules that WAS NOT found in builtins.
@@ -52,9 +67,10 @@ pub async fn find_builtins(
         .await??;
 
     for builtin in builtins.lines() {
+        let builtin = module_name_from_line(builtin);
         let found = modules_to_find
             .iter()
-            .position(|required| builtin.contains(required));
+            .position(|required| normalize_module_name(required) == builtin);
 
         if let Some(index) = found {
             debug!("builtin {}", modules_to_find[index]);
@@ -81,7 +97,9 @@ pub async fn find_loaded(
     let modules = modules.unwrap();
 
     for (name, _) in modules.0.iter() {
-        let found = modules_to_find.iter().position(|required| required == name);
+        let found = modules_to_find
+            .iter()
+            .position(|required| normalize_module_name(required) == *name);
 
         if let Some(index) = found {
             debug!("module {}", modules_to_find[index]);
@@ -115,10 +133,10 @@ pub async fn find_loadable(
         .await??;
 
     for line in dep_file.lines() {
-        let module_path = line.split(':').next().unwrap_or("");
+        let available = module_name_from_line(line);
         let found = modules_to_find
             .iter()
-            .position(|required| module_path.contains(required.as_str()));
+            .position(|required| normalize_module_name(required) == available);
         if let Some(index) = found {
             debug!("available {}", modules_to_find[index]);
             modules_to_find.remove(index);
@@ -176,4 +194,37 @@ pub async fn check_modules(
     }
 
     CheckResult::new(&parent_check_name, Passed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{module_name_from_line, normalize_module_name};
+
+    #[test]
+    fn module_file_names_match_required_names_across_separators() {
+        let dep = "kernel/drivers/xen/xen-evtchn.ko.xz: kernel/drivers/xen/xen-privcmd.ko.xz";
+        assert_eq!(module_name_from_line(dep), "xen_evtchn");
+        assert_eq!(
+            module_name_from_line("kernel/arch/x86/kvm/kvm-intel.ko.zst:"),
+            normalize_module_name("kvm_intel")
+        );
+        assert_eq!(
+            module_name_from_line("kernel/drivers/xen/xen-privcmd.ko"),
+            normalize_module_name("xen-privcmd")
+        );
+    }
+
+    #[test]
+    fn a_module_does_not_match_another_that_contains_its_name() {
+        for line in [
+            "kernel/drivers/scsi/arcmsr/arcmsr.ko.xz:",
+            "kernel/drivers/powercap/intel_rapl_msr.ko.xz: kernel/arch/x86/kernel/msr.ko.xz",
+        ] {
+            assert_ne!(module_name_from_line(line), "msr");
+        }
+        assert_eq!(
+            module_name_from_line("kernel/arch/x86/kernel/msr.ko"),
+            "msr"
+        );
+    }
 }
