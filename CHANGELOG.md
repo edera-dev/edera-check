@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.24](https://github.com/edera-dev/edera-check/compare/v0.2.23...v0.2.24) - 2026-11-10
+
+### Fixed
+
+- *(various)* minor fixes ([#198](https://github.com/edera-dev/edera-check/pull/198))
+- *(checks)* fix several issues with disk checks and mounts, and module names ([#197](https://github.com/edera-dev/edera-check/pull/197))
+- *(cli)* make it clear that PVH support is also dependent on IOMMU support ([#195](https://github.com/edera-dev/edera-check/pull/195))
+
 ## [0.2.23](https://github.com/edera-dev/edera-check/compare/v0.2.22...v0.2.23) - 2026-11-06
 
 ### Fixed
