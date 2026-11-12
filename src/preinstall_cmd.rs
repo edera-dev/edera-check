@@ -1,10 +1,11 @@
 use edera_check::checkers::preinstall::{
     byo_kernel::BYOKernelChecks, iommu::IOMMUChecks, kernel::KernelChecks, kvm::KvmChecks,
-    numa::NUMAChecks, pvh::PVHChecks, system::SystemChecks,
+    memory::MemoryChecks, numa::NUMAChecks, pvh::PVHChecks, system::SystemChecks,
 };
 
 use crate::{
-    booted_under_edera, create_base_path, create_gzip_from, report_base_path, write_group_report,
+    PreinstallAction, PreinstallArgs, booted_under_edera, create_base_path, create_gzip_from,
+    report_base_path, write_group_report,
 };
 use anyhow::Result;
 use console::style;
@@ -20,14 +21,18 @@ use edera_check::recorders::preinstall::system::SystemRecorder as prerecorder;
 use anyhow::{anyhow, bail};
 use std::{collections::HashSet, env, path::PathBuf, process};
 
-pub async fn do_preinstall(
-    list_only: bool,
-    byo_kernel: bool,
-    record_hostinfo: bool,
-    only_checks: Vec<String>,
-    run_checks_for: BaseHypervisor,
-    report_dir: Option<String>,
-) -> Result<()> {
+pub async fn do_preinstall(args: PreinstallArgs) -> Result<()> {
+    let PreinstallArgs {
+        action,
+        byo_kernel,
+        record_hostinfo,
+        hypervisor: run_checks_for,
+        only_checks,
+        skip_checks,
+        report_dir,
+    } = args;
+    let list_only = matches!(action, Some(PreinstallAction::ListChecks));
+
     // If we are in a privileged container running in the host pid namespace,
     // this creates a tokio thread pool that runs stuff outside of the container context,
     // directly on the host.
@@ -47,37 +52,63 @@ pub async fn do_preinstall(
 
     let base_path = report_base_path(base_dir, hostname.trim(), "preinstall");
 
+    // The installer keeps the running kernel by default on KVM, and installs the Edera kernel
+    // by default on Xen.
+    let byo_kernel = byo_kernel.unwrap_or(run_checks_for == BaseHypervisor::Kvm);
+    // Only an install of the Edera kernel changes what the host boots.
+    let changes_boot = !byo_kernel;
+
     // a vector of boxed implementors of CheckGroup. a trait that represents a group of checks
     // for a particular category of attributes
-    let mut groups: Vec<Box<dyn CheckGroup>> = match run_checks_for {
-        BaseHypervisor::Kvm => {
-            vec![
-                Box::new(PVHChecks::new(host_executor.clone(), BaseHypervisor::Kvm)),
-                Box::new(KvmChecks::new(host_executor.clone())),
-                Box::new(IOMMUChecks::new(host_executor.clone())),
-            ]
-        }
-        BaseHypervisor::Xen => {
-            vec![
-                Box::new(SystemChecks::new(host_executor.clone())),
-                Box::new(PVHChecks::new(host_executor.clone(), BaseHypervisor::Xen)),
-                Box::new(KernelChecks::new(host_executor.clone())),
-                Box::new(IOMMUChecks::new(host_executor.clone())),
-                Box::new(NUMAChecks::new(host_executor.clone())),
-            ]
-        }
-    };
+    // Every preinstall group, with whether this run includes it.
+    let xen = run_checks_for == BaseHypervisor::Xen;
+    let candidates: Vec<(bool, Box<dyn CheckGroup>)> = vec![
+        (
+            true,
+            Box::new(SystemChecks::new(host_executor.clone(), changes_boot)),
+        ),
+        (true, Box::new(MemoryChecks::new(host_executor.clone()))),
+        (
+            true,
+            Box::new(PVHChecks::new(
+                host_executor.clone(),
+                run_checks_for.clone(),
+            )),
+        ),
+        (!xen, Box::new(KvmChecks::new(host_executor.clone()))),
+        (xen, Box::new(KernelChecks::new(host_executor.clone()))),
+        (true, Box::new(IOMMUChecks::new(host_executor.clone()))),
+        (xen, Box::new(NUMAChecks::new(host_executor.clone()))),
+        (
+            byo_kernel,
+            Box::new(BYOKernelChecks::new(
+                host_executor.clone(),
+                run_checks_for.clone(),
+            )),
+        ),
+        (
+            record_hostinfo,
+            Box::new(prerecorder::new(host_executor.clone(), &base_path)),
+        ),
+    ];
 
-    if byo_kernel {
-        groups.push(Box::new(BYOKernelChecks::new(host_executor.clone())));
+    // A skip list can name a group that only another hypervisor or flag runs.
+    let unknown: Vec<&str> = skip_checks
+        .iter()
+        .filter(|id| !candidates.iter().any(|(_, group)| group.id() == *id))
+        .map(String::as_str)
+        .collect();
+    if !unknown.is_empty() {
+        bail!(
+            "unknown check id: {}. Run `edera-check preinstall list-checks` for the valid checks",
+            unknown.join(", ")
+        );
     }
 
-    if record_hostinfo {
-        groups.push(Box::new(prerecorder::new(
-            host_executor.clone(),
-            &base_path,
-        )));
-    }
+    let mut groups: Vec<Box<dyn CheckGroup>> = candidates
+        .into_iter()
+        .filter_map(|(included, group)| included.then_some(group))
+        .collect();
 
     if list_only {
         let id_w = groups
@@ -155,6 +186,7 @@ pub async fn do_preinstall(
         }
         groups.retain(|group| only_checks.contains(&group.id().to_string()));
     }
+    groups.retain(|group| !skip_checks.contains(&group.id().to_string()));
 
     groups.sort_by_key(|g| g.category());
 

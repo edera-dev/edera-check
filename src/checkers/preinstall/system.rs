@@ -8,41 +8,44 @@ use crate::helpers::{
 use async_trait::async_trait;
 use bytesize::ByteSize;
 use futures::{FutureExt, future::join_all};
-use log::debug;
 use std::path::Path;
-use sysinfo::System;
 
 const GROUP_IDENTIFIER: &str = "system";
 const NAME: &str = "System Checks";
-const MINIMUM_MEMORY: u64 = 4 * 1024 * 1024 * 1024; // 4GB
 const MINIMUM_DISK_GENERAL: u64 = 1024 * 1024 * 1024; // 1GB
 const MINIMUM_DISK_VAR: u64 = 5 * 1024 * 1024 * 1024; // 5GB
 const MINIMUM_DISK_BOOT: u64 = 200 * 1024 * 1024; // 200MB
 
 pub struct SystemChecks {
     host_executor: HostNamespaceExecutor,
+    changes_boot: bool,
 }
 
 impl SystemChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        SystemChecks { host_executor }
+    /// `changes_boot` adds the checks for an install that changes what the host boots.
+    pub fn new(host_executor: HostNamespaceExecutor, changes_boot: bool) -> Self {
+        SystemChecks {
+            host_executor,
+            changes_boot,
+        }
     }
     pub async fn run_all(&self) -> CheckGroupResult {
-        let results = join_all([
+        let mut checks = vec![
             self.not_snap_docker().boxed(),
-            self.enough_memory().boxed(),
             self.enough_disk("/usr".into(), MINIMUM_DISK_GENERAL)
                 .boxed(),
             self.enough_disk("/var/lib".into(), MINIMUM_DISK_VAR)
                 .boxed(),
-            self.enough_disk("/boot".into(), MINIMUM_DISK_BOOT).boxed(),
             self.has_nft_bin().boxed(),
             self.has_package_manager_bin().boxed(),
-            self.has_grub_mkconfig_bin().boxed(),
             self.has_service_manager_bin().boxed(),
             self.has_linux_util_bins(&["tar", "grep"]).boxed(),
-        ])
-        .await;
+        ];
+        if self.changes_boot {
+            checks.push(self.enough_disk("/boot".into(), MINIMUM_DISK_BOOT).boxed());
+            checks.push(self.has_grub_mkconfig_bin().boxed());
+        }
+        let results = join_all(checks).await;
 
         let mut group_result = Passed;
         for res in results.iter() {
@@ -82,7 +85,8 @@ impl SystemChecks {
     }
 
     /// Checks that the `nft` binary, typically from the `nftables` package,
-    /// is in PATH. Currently, the installer and `protect-network` rely on this.
+    /// is in PATH. Currently, the installer and `protect-network` rely on this
+    /// in releases before 1.13. Releases 1.13 and after bundle it in `protect-tools`.
     async fn has_nft_bin(&self) -> CheckResult {
         let name = String::from("'nft' Binary Present");
         let found = self
@@ -109,7 +113,7 @@ impl SystemChecks {
     }
 
     /// Checks that the given util-linux/coreutils/etc binaries are present in PATH.
-    /// It is assumed that all of these respond to `--version`.
+    /// Only the launch has to succeed, because BusyBox `grep` rejects `--version`.
     /// On all supported systems this should be a given.
     /// Currently, the installer relies explicitly on these being present on the host.
     async fn has_linux_util_bins(&self, bins: &[&str]) -> CheckResult {
@@ -126,8 +130,7 @@ impl SystemChecks {
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
                         .status()
-                        .map(|s| s.success())
-                        .unwrap_or(false);
+                        .is_ok();
                     if !found {
                         missing.push(bin.clone());
                     }
@@ -149,7 +152,7 @@ impl SystemChecks {
     }
 
     /// Checks that either `grub-mkconfig` or `grub2-mkconfig` is present in PATH,
-    /// as the installer currently requires one or the other.
+    /// as the installer requires one or the other to change what the host boots.
     async fn has_grub_mkconfig_bin(&self) -> CheckResult {
         let name = String::from("'grub-mkconfig' Binary Present");
         let found = self
@@ -238,45 +241,6 @@ impl SystemChecks {
                 Errored("no supported package manager found in PATH (tried: dnf, yum, zypper, apt-get, apk)".into()),
             )
         }
-    }
-
-    /// Checks that total system RAM is at least 4 GB.
-    ///
-    /// Manual equivalent:
-    /// ```sh
-    /// awk '/MemTotal/ { if ($2 >= 4194304) print "OK"; else print "FAIL" }' /proc/meminfo
-    /// ```
-    async fn enough_memory(&self) -> CheckResult {
-        let name = String::from("Enough Memory");
-
-        let total_mem = match self
-            .host_executor
-            .spawn_in_host_ns(async {
-                let mut sys = System::new_all();
-                sys.refresh_all();
-
-                sys.total_memory()
-            })
-            .await
-        {
-            Ok(mem) => mem,
-            Err(e) => {
-                return CheckResult::new(&name, Errored(e.to_string()));
-            }
-        };
-
-        debug!("total memory = {total_mem}");
-
-        let mut result = Passed;
-        if total_mem < MINIMUM_MEMORY {
-            let reason = format!(
-                "total memory is {} but need at least {}",
-                ByteSize(total_mem),
-                ByteSize(MINIMUM_MEMORY)
-            );
-            result = Failed(reason);
-        }
-        CheckResult::new(&name, result)
     }
 
     async fn enough_disk(&self, mount_path: String, free_thresh: u64) -> CheckResult {

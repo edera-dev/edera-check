@@ -47,9 +47,11 @@ struct PreinstallArgs {
     #[command(subcommand)]
     action: Option<PreinstallAction>,
 
-    /// Validate running kernel for bring-your-own kernel support (default false)
-    #[arg(short, long, default_value_t = false)]
-    byo_kernel: bool,
+    /// Require the running kernel to support bring-your-own kernel use. Set to false, those
+    /// checks do not run, and the GRUB and /boot checks run (default false for xen, true for kvm)
+    #[arg(short, long, action = ArgAction::Set, num_args = 0..=1,
+          require_equals = true, default_missing_value = "true")]
+    byo_kernel: Option<bool>,
 
     /// Collect information and configuration snapshot of current system (default true)
     #[arg(short, long, default_value_t = true, action = ArgAction::Set, num_args = 0..=1,
@@ -64,6 +66,10 @@ struct PreinstallArgs {
     /// Will override all other check enablement flags.
     #[arg(short, long, value_delimiter = ',')]
     only_checks: Vec<String>,
+
+    /// Do not run the selected checks.
+    #[arg(long, value_delimiter = ',')]
+    skip_checks: Vec<String>,
 
     /// Directory path to write report to. Will be created if it doesn't exist. Defaults to `/tmp`
     #[arg(short = 'd', long)]
@@ -135,17 +141,7 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Commands::Preinstall(args) => {
-            preinstall_cmd::do_preinstall(
-                matches!(args.action, Some(PreinstallAction::ListChecks)),
-                args.byo_kernel,
-                args.record_hostinfo,
-                args.only_checks,
-                args.hypervisor,
-                args.report_dir,
-            )
-            .await
-        }
+        Commands::Preinstall(args) => preinstall_cmd::do_preinstall(args).await,
         Commands::Postinstall(args) => {
             postinstall_cmd::do_postinstall(
                 matches!(args.action, Some(PostinstallAction::ListChecks)),
