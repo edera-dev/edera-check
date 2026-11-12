@@ -1,5 +1,5 @@
 use crate::helpers::{
-    CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
+    BaseHypervisor, CheckGroup, CheckGroupCategory, CheckGroupResult, CheckResult,
     CheckResultValue::{Errored, Failed, Passed},
     host_executor::HostNamespaceExecutor,
     kernel as khelper,
@@ -13,7 +13,7 @@ const GROUP_IDENTIFIER: &str = "byokernel";
 const NAME: &str = "Bring-Your-Own Kernel Checks";
 // Modules that the currently running kernel must have as loaded/builtin/loadable
 // in order for it to be usable as a BYO kernel
-const REQUIRED_MODULES: &[&str] = &[
+const REQUIRED_MODULES_XEN: &[&str] = &[
     "nf_tables",
     "xen_evtchn",
     "xen-privcmd",
@@ -23,6 +23,8 @@ const REQUIRED_MODULES: &[&str] = &[
     "xen-gntdev",
     "xen-gntalloc",
 ];
+// The `kvm` group checks the virtualization modules.
+const REQUIRED_MODULES_KVM: &[&str] = &["nf_tables"];
 
 const KVER_FLOOR_PATCH: u16 = 0;
 const KVER_FLOOR_MINOR: u8 = 15;
@@ -30,11 +32,15 @@ const KVER_FLOOR_MAJOR: u8 = 5;
 
 pub struct BYOKernelChecks {
     host_executor: HostNamespaceExecutor,
+    hypervisor: BaseHypervisor,
 }
 
 impl BYOKernelChecks {
-    pub fn new(host_executor: HostNamespaceExecutor) -> Self {
-        BYOKernelChecks { host_executor }
+    pub fn new(host_executor: HostNamespaceExecutor, hypervisor: BaseHypervisor) -> Self {
+        BYOKernelChecks {
+            host_executor,
+            hypervisor,
+        }
     }
 
     /// Run all the checkers asynchronously, then
@@ -83,7 +89,7 @@ impl BYOKernelChecks {
         }
     }
 
-    /// Checks that all required Xen and networking modules are available as built-in,
+    /// Checks that all required networking modules, and on Xen the Xen modules, are available as built-in,
     /// currently loaded, or loadable (present in `modules.dep`) for the running kernel.
     ///
     /// Manual equivalent:
@@ -99,8 +105,13 @@ impl BYOKernelChecks {
     async fn has_modules(&self) -> CheckResult {
         let name = String::from("Host Has Necessary Modules");
 
-        let required_modules: Vec<String> =
-            REQUIRED_MODULES.iter().map(|s| s.to_string()).collect();
+        let required_modules: Vec<String> = match self.hypervisor {
+            BaseHypervisor::Xen => REQUIRED_MODULES_XEN,
+            BaseHypervisor::Kvm => REQUIRED_MODULES_KVM,
+        }
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
         // Search builtin modules
         let remaining = match khelper::find_builtins(&self.host_executor, &required_modules).await {
@@ -152,8 +163,6 @@ impl CheckGroup for BYOKernelChecks {
     }
 
     fn category(&self) -> CheckGroupCategory {
-        CheckGroupCategory::Optional(
-            "Active kernel not sufficient for Bring-Your-Own-Kernel support".into(),
-        )
+        CheckGroupCategory::Required
     }
 }
