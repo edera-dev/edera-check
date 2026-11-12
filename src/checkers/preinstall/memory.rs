@@ -34,14 +34,17 @@ impl MemoryChecks {
         let total_mem = match self
             .host_executor
             .spawn_in_host_ns(async {
-                let mut sys = System::new_all();
+                let mut sys = System::new_all()?;
                 sys.refresh_all();
 
-                sys.total_memory()
+                Ok::<_, sysinfo::Error>(sys.total_memory())
             })
             .await
         {
-            Ok(mem) => mem,
+            Ok(Ok(mem)) => mem,
+            Ok(Err(e)) => {
+                return CheckResult::new(&name, Errored(e.to_string()));
+            }
             Err(e) => {
                 return CheckResult::new(&name, Errored(e.to_string()));
             }
