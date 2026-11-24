@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 
@@ -37,7 +37,7 @@ jobs:
           permission-pull-requests: write
 
       - name: markdownlint
-        uses: step-security/action-markdownlint@c91b7c102591cac31fa35dbb9dfd6ab31da5e4fa
+        uses: step-security/action-markdownlint@f43d01d3873bff3c71120dace5ecf7260bebe112
         with:
           GITHUB_TOKEN: "${{ steps.generate-token.outputs.token }}"
           reporter: github-pr-review
