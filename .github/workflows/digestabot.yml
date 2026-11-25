@@ -21,7 +21,7 @@ jobs:
 
     steps:
     - name: Harden the runner (Audit all outbound calls)
-      uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      uses: step-security/harden-runner@aebdcf6156ab6691adf63218240e476564a1ed4c # v2.23.0
       with:
         egress-policy: audit
 
@@ -30,7 +30,7 @@ jobs:
         persist-credentials: false
 
     - name: generate cultivator token
-      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
       id: generate-token
       with:
         app-id: "${{ secrets.EDERA_CULTIVATION_APP_ID }}"
@@ -40,7 +40,7 @@ jobs:
         permission-contents: write
         permission-pull-requests: write
 
-    - uses: chainguard-dev/digestabot@33d0b78e580aa0c83fe188eb3dfad6611b662479 # a110b65f3d4742d56b5b2b2306de6e2e54306724
+    - uses: chainguard-dev/digestabot@3e895adcf935bab7a21ebef6173d7cd4375822ab # a110b65f3d4742d56b5b2b2306de6e2e54306724
       with:
         token: "${{ steps.generate-token.outputs.token }}"
         signoff: true
